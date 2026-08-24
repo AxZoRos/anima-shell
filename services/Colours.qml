@@ -36,8 +36,16 @@ Singleton {
 
     function alterColour(c: color, a: real, layer: int): color {
         const luminance = getLuminance(c);
+        if (luminance === 0)
+            return Qt.rgba(0, 0, 0, a);
 
-        const offset = (!light || layer == 1 ? 1 : -layer / 2) * (light ? 0.2 : 0.3) * (1 - transparency.base) * (1 + wallLuminance * (light ? (layer == 1 ? 3 : 1) : 2.5));
+        const lumFactor = light ? (1 + wallLuminance * (layer == 1 ? 3.0 : 1.0)) : (1 + wallLuminance * (layer == 1 ? 0.4 : 0.25));
+
+        const layerFactor = (!light || layer == 1 ? 1 : -layer / 2);
+        const baseStrength = (light ? 0.2 : 0.15) * (1 - transparency.base);
+
+        const offset = layerFactor * baseStrength * lumFactor;
+
         const scale = (luminance + offset) / luminance;
         const r = Math.max(0, Math.min(1, c.r * scale));
         const g = Math.max(0, Math.min(1, c.g * scale));
@@ -123,7 +131,18 @@ Singleton {
     ImageAnalyser {
         id: analyser
 
-        source: Wallpapers.current
+        source: {
+            const wall = Wallpapers.current;
+            if (!wall)
+                return "";
+
+            if (Wallpapers.isVideo(wall)) {
+                const _ = Wallpapers.cacheBuster;
+                return Wallpapers.getRawThumbPath(wall);
+            }
+
+            return wall;
+        }
     }
 
     Timer {

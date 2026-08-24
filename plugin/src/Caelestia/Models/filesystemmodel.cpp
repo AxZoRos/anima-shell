@@ -281,6 +281,12 @@ void FileSystemModel::updateEntries() {
 }
 
 void FileSystemModel::updateEntriesForDir(const QString& dir) {
+    Q_UNUSED(dir);
+    if (m_path.isEmpty()) {
+        return;
+    }
+    const QString targetDir = m_path;
+
     const auto recursive = m_recursive;
     const auto showHidden = m_showHidden;
     const auto filter = m_filter;
@@ -308,7 +314,7 @@ void FileSystemModel::updateEntriesForDir(const QString& dir) {
                 filters |= QDir::Hidden;
             }
 
-            iter.emplace(dir, extraNameFilters, filters, flags);
+            iter.emplace(targetDir, extraNameFilters, filters, flags);
         } else {
             QDir::Filters filters;
 
@@ -325,9 +331,9 @@ void FileSystemModel::updateEntriesForDir(const QString& dir) {
             }
 
             if (nameFilters.isEmpty()) {
-                iter.emplace(dir, filters, flags);
+                iter.emplace(targetDir, filters, flags);
             } else {
-                iter.emplace(dir, nameFilters, filters, flags);
+                iter.emplace(targetDir, nameFilters, filters, flags);
             }
         }
 
@@ -356,29 +362,33 @@ void FileSystemModel::updateEntriesForDir(const QString& dir) {
         promise.addResult(qMakePair(oldPaths - newPaths, newPaths - oldPaths));
     });
 
-    if (m_futures.contains(dir)) {
-        m_futures[dir].cancel();
+    if (m_futures.contains(targetDir)) {
+        m_futures[targetDir].cancel();
     }
-    m_futures.insert(dir, future);
+    m_futures.insert(targetDir, future);
 
     future
         .then(this,
-            [dir, this](QPair<QSet<QString>, QSet<QString>> result) {
-                m_futures.remove(dir);
+            [targetDir, this](QPair<QSet<QString>, QSet<QString>> result) {
+                m_futures.remove(targetDir);
                 if (!result.first.isEmpty() || !result.second.isEmpty()) {
                     applyChanges(result.first, result.second);
                 }
             })
-        .onCanceled(this, [dir, this]() {
-            m_futures.remove(dir);
+        .onCanceled(this, [targetDir, this]() {
+            m_futures.remove(targetDir);
         });
 }
 
 void FileSystemModel::applyChanges(const QSet<QString>& removedPaths, const QSet<QString>& addedPaths) {
+    QSet<QString> seenPaths;
     QList<int> removedIndices;
     for (int i = 0; i < m_entries.size(); ++i) {
-        if (removedPaths.contains(m_entries[i]->path())) {
+        const auto& p = m_entries[i]->path();
+        if (removedPaths.contains(p) || seenPaths.contains(p)) {
             removedIndices << i;
+        } else {
+            seenPaths.insert(p);
         }
     }
     std::sort(removedIndices.begin(), removedIndices.end(), std::greater<int>());
@@ -411,10 +421,19 @@ void FileSystemModel::applyChanges(const QSet<QString>& removedPaths, const QSet
         endRemoveRows();
     }
 
-    // Create new entries
+    // Collect current paths after removals
+    QSet<QString> currentPaths;
+    for (const auto& entry : std::as_const(m_entries)) {
+        currentPaths.insert(entry->path());
+    }
+
+    // Create new entries without duplicates
     QList<FileSystemEntry*> newEntries;
     for (const auto& path : addedPaths) {
-        newEntries << new FileSystemEntry(path, m_dir.relativeFilePath(path), this);
+        if (!currentPaths.contains(path)) {
+            newEntries << new FileSystemEntry(path, m_dir.relativeFilePath(path), this);
+            currentPaths.insert(path);
+        }
     }
     std::sort(newEntries.begin(), newEntries.end(), [this](const FileSystemEntry* a, const FileSystemEntry* b) {
         return compareEntries(a, b);

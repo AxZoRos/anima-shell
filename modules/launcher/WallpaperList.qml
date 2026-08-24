@@ -17,6 +17,13 @@ PathView {
 
     readonly property int itemWidth: Tokens.sizes.launcher.wallpaperWidth * 0.8 + Tokens.padding.medium * 2
 
+    readonly property int rapidScrollThresholdMs: 60
+    readonly property int settledPreviewDelayMs: 60
+    readonly property int singleStepPreviewDelayMs: 60
+    readonly property int fastFadePreviewDelayMs: 60
+
+    property real lastSwitchTime: 0
+
     readonly property int numItems: {
         const screen = (QsWindow.window as QsWindow)?.screen;
         if (!screen)
@@ -30,13 +37,10 @@ PathView {
         if ((screenState.utilities || screenState.sidebar) && panels.utilities.implicitWidth > outerMargins)
             outerMargins = panels.utilities.implicitWidth;
         const maxWidth = screen.width - Config.border.rounding * 4 - (barMargins + outerMargins) * 2;
-
         if (maxWidth <= 0)
             return 0;
-
         const maxItemsOnScreen = Math.floor(maxWidth / itemWidth);
-        const visible = Math.min(maxItemsOnScreen, Config.launcher.maxWallpapers, scriptModel.values.length);
-
+        const visible = Math.min(maxItemsOnScreen, Config.launcher.maxWallpapers, root.count);
         if (visible === 2)
             return 1;
         if (visible > 1 && visible % 2 === 0)
@@ -44,21 +48,125 @@ PathView {
         return visible;
     }
 
-    model: ScriptModel {
-        id: scriptModel
-
-        readonly property string search: root.search.text.split(" ").slice(1).join(" ")
-
-        values: Wallpapers.query(search)
-        onValuesChanged: root.currentIndex = search ? 0 : values.findIndex(w => w.path === Wallpapers.actualCurrent)
+    function resolveCurrentTargetIndex(): int {
+        const target = root.content ? root.content.categoryAwareTarget(Wallpapers.filterMode) : Wallpapers.actualCurrent;
+        const foundIdx = Wallpapers.indexOf(target);
+        return foundIdx >= 0 ? foundIdx : 0;
     }
 
-    Component.onCompleted: currentIndex = Wallpapers.list.findIndex(w => w.path === Wallpapers.actualCurrent)
+    currentIndex: resolveCurrentTargetIndex()
+
+    function jumpToIndex(targetIdx: int) {
+        if (targetIdx < 0 || targetIdx >= count)
+            return;
+
+        positionViewAtIndex(targetIdx, PathView.Center);
+        currentIndex = targetIdx;
+        previewDebounce.restart();
+    }
+
+    property string debouncedSearch: ""
+
+    onDebouncedSearchChanged: {
+        if (debouncedSearch !== "") {
+            root.jumpToIndex(0);
+        } else {
+            Qt.callLater(() => {
+                const target = root.content ? root.content.categoryAwareTarget(Wallpapers.filterMode) : Wallpapers.actualCurrent;
+                const foundIdx = Wallpapers.indexOf(target);
+                root.jumpToIndex(foundIdx >= 0 ? foundIdx : 0);
+            });
+        }
+    }
+
+    Timer {
+        id: searchDebounce
+        interval: 120
+        repeat: false
+        onTriggered: {
+            const queryText = root.search.text.split(" ").slice(1).join(" ");
+            root.debouncedSearch = queryText;
+        }
+    }
+
+    Connections {
+        target: root.search
+        enabled: !!root.search
+        function onTextChanged() {
+            const queryText = root.search.text.split(" ").slice(1).join(" ");
+            if (queryText.trim() === "") {
+                searchDebounce.stop();
+                root.debouncedSearch = "";
+            } else {
+                searchDebounce.restart();
+            }
+        }
+    }
+
+    // Direct reactive array model without ScriptModel diff overhead
+    model: {
+        Wallpapers.list;
+        return Wallpapers.query(root.debouncedSearch);
+    }
+
+    onWidthChanged: {
+        if (width > 0 && count > 0) {
+            positionViewAtIndex(currentIndex, PathView.Center);
+        }
+    }
+
+    Component.onCompleted: {
+        Qt.callLater(() => {
+            const targetIdx = resolveCurrentTargetIndex();
+            jumpToIndex(targetIdx);
+            Wallpapers.startSpiralQueue();
+        });
+    }
+
+    Connections {
+        target: root.screenState
+        enabled: !!root.screenState
+        function onLauncherChanged() {
+            if (root.screenState.launcher) {
+                Qt.callLater(() => {
+                    const targetIdx = resolveCurrentTargetIndex();
+                    root.jumpToIndex(targetIdx);
+                    Wallpapers.startSpiralQueue();
+                });
+            }
+        }
+    }
+
     Component.onDestruction: Wallpapers.stopPreview()
 
-    onCurrentItemChanged: {
-        if (currentItem)
-            Wallpapers.preview((currentItem as WallpaperItem).modelData.path);
+    Timer {
+        id: previewDebounce
+        interval: root.singleStepPreviewDelayMs
+        repeat: false
+        onTriggered: {
+            if (!root || !root.model || root.model.length === 0)
+                return;
+            const entry = root.model[root.currentIndex];
+            if (entry && entry.path) {
+                const clean = String(entry.path).replace(/^file:\/\//, "");
+                Wallpapers.preview(clean);
+            }
+        }
+    }
+
+    onCurrentIndexChanged: {
+        if (!Wallpapers.enableAnimation) {
+            previewDebounce.interval = fastFadePreviewDelayMs;
+            previewDebounce.restart();
+            return;
+        }
+
+        const now = Date.now();
+        const delta = now - lastSwitchTime;
+        lastSwitchTime = now;
+
+        previewDebounce.interval = (delta < rapidScrollThresholdMs) ? settledPreviewDelayMs : singleStepPreviewDelayMs;
+        previewDebounce.restart();
     }
 
     implicitWidth: Math.min(numItems, count) * itemWidth
@@ -76,7 +184,6 @@ PathView {
 
     path: Path {
         startY: root.height / 2
-
         PathAttribute {
             name: "z"
             value: 0

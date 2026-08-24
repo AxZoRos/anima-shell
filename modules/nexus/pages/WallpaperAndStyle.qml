@@ -13,6 +13,77 @@ import qs.modules.nexus.common
 PageBase {
     id: root
 
+    readonly property list<MenuItem> hwDecoderItems: [
+        MenuItem {
+            text: qsTr("Auto")
+        },
+        MenuItem {
+            text: qsTr("Software")
+        },
+        MenuItem {
+            text: "VAAPI"
+        },
+        MenuItem {
+            text: "VDPAU"
+        },
+        MenuItem {
+            text: "CUDA"
+        },
+        MenuItem {
+            text: "Vulkan"
+        },
+        MenuItem {
+            text: "DRM"
+        }
+    ]
+    readonly property list<string> hwDecoderValues: ["auto", "none", "vaapi", "vdpau", "cuda", "vulkan", "drm"]
+    readonly property var hwDecoderIndexMap: ({
+            "auto": 0,
+            "none": 1,
+            "vaapi": 2,
+            "vdpau": 3,
+            "cuda": 4,
+            "vulkan": 5,
+            "drm": 6
+        })
+
+    function hwDecoderToIndex(val: string): int {
+        const v = (val ?? "auto").toLowerCase();
+        return v in hwDecoderIndexMap ? hwDecoderIndexMap[v] : 0;
+    }
+
+    readonly property list<MenuItem> pauseModeItems: [
+        MenuItem {
+            text: qsTr("Disabled")
+        },
+        MenuItem {
+            text: qsTr("On battery only")
+        },
+        MenuItem {
+            text: qsTr("Behind windows only")
+        },
+        MenuItem {
+            text: qsTr("Battery & behind windows")
+        }
+    ]
+
+    function getPauseModeIndex(): int {
+        const batt = WallpaperPauser.pauseOnBattery;
+        const win = WallpaperPauser.pauseOnWindowOverlap;
+        if (batt && win)
+            return 3;
+        if (win)
+            return 2;
+        if (batt)
+            return 1;
+        return 0;
+    }
+
+    function setPauseMode(index: int) {
+        WallpaperPauser.pauseOnBattery = (index === 1 || index === 3);
+        WallpaperPauser.pauseOnWindowOverlap = (index === 2 || index === 3);
+    }
+
     title: qsTr("Wallpaper & style")
 
     ColumnLayout {
@@ -27,10 +98,14 @@ PageBase {
             Layout.alignment: Qt.AlignHCenter
             implicitWidth: {
                 const screen = root.nState.screen;
+                if (!screen || screen.height === 0)
+                    return 0;
                 return implicitHeight / screen.height * screen.width;
             }
             implicitHeight: {
                 const screen = root.nState.screen;
+                if (!screen || screen.width === 0)
+                    return 0;
                 const cWidth = root.cappedWidth;
                 return Math.min(Math.round(cWidth * 0.4), cWidth / screen.width * screen.height);
             }
@@ -123,7 +198,18 @@ PageBase {
                     id: wallImg
 
                     anchors.fill: parent
-                    source: Wallpapers.current
+                    source: {
+                        const path = Wallpapers.current;
+                        if (!path)
+                            return "";
+
+                        if (Wallpapers.isVideo(path)) {
+                            const thumb = Wallpapers.getWallpaperThumb(path, Wallpapers.cacheBuster);
+                            return (typeof thumb === "string" && thumb !== "undefined") ? thumb : "";
+                        }
+
+                        return path;
+                    }
                     preventInit: wallIndicatorLoader.opacity > 0
                     fadeOutAnim: Anim.DefaultEffects
                     fadeInAnim: Anim.SlowEffects
@@ -171,14 +257,47 @@ PageBase {
         }
 
         ToggleRow {
+            Layout.fillWidth: true
             first: true
             text: qsTr("Display wallpaper")
             checked: Config.background.wallpaperEnabled
             onToggled: GlobalConfig.background.wallpaperEnabled = checked
         }
 
+        SelectRow {
+            Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
+            Layout.fillWidth: true
+
+            label: qsTr("Video Hardware Decoder")
+            menuOnTop: true
+            menuItems: root.hwDecoderItems
+            active: root.hwDecoderItems[root.hwDecoderToIndex(WallpaperPauser.hwDecoder)]
+            onSelected: item => WallpaperPauser.setHwDecoder(root.hwDecoderValues[root.hwDecoderItems.indexOf(item)])
+        }
+
+        SelectRow {
+            Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
+            Layout.fillWidth: true
+
+            label: qsTr("Pause animated wallpapers")
+            menuOnTop: true
+            menuItems: root.pauseModeItems
+            active: root.pauseModeItems[root.getPauseModeIndex()]
+            onSelected: item => root.setPauseMode(root.pauseModeItems.indexOf(item))
+        }
+
         ToggleRow {
             Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
+            Layout.fillWidth: true
+
+            text: qsTr("Animate wallpaper transitions")
+            checked: Wallpapers.enableAnimation
+            onToggled: Wallpapers.enableAnimation = checked
+        }
+
+        ToggleRow {
+            Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
+            Layout.fillWidth: true
 
             text: qsTr("Transparency")
             subtext: qsTr("Base %1, layers %2").arg(Colours.transparency.base).arg(Colours.transparency.layers)
@@ -188,6 +307,7 @@ PageBase {
 
         ToggleRow {
             Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
+            Layout.fillWidth: true
 
             last: true
             text: qsTr("Dark theme")

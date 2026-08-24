@@ -16,6 +16,10 @@ Item {
     property alias radius: imgWrapper.radius
     property alias imgHeight: imgWrapper.implicitHeight
     property bool fillLabel: true
+    property string formatText: ""
+    property string formatIcon: ""
+    property string fpsText: ""
+    property string resText: ""
 
     signal clicked
 
@@ -73,7 +77,9 @@ Item {
                 fillMode: Image.PreserveAspectCrop
                 sourceSize: {
                     const dpr = (QsWindow.window as QsWindow)?.devicePixelRatio ?? 1;
-                    return Qt.size(width * dpr, height * dpr);
+                    const w = imgWrapper.width > 0 ? imgWrapper.width : 200;
+                    const h = imgWrapper.implicitHeight > 0 ? imgWrapper.implicitHeight : 200;
+                    return Qt.size(w * dpr, h * dpr);
                 }
                 retainWhileLoading: true
                 opacity: status === Image.Ready ? 1 : 0
@@ -81,6 +87,101 @@ Item {
                 Behavior on opacity {
                     Anim {
                         type: Anim.SlowEffects
+                    }
+                }
+            }
+
+            StyledRect {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.margins: Tokens.spacing.small
+
+                visible: root.formatText !== "" || root.formatIcon !== ""
+                color: Qt.rgba(Colours.palette.m3surfaceContainer.r, Colours.palette.m3surfaceContainer.g, Colours.palette.m3surfaceContainer.b, 0.8)
+                radius: Tokens.rounding.small
+                implicitWidth: badgeLayout.implicitWidth + Tokens.padding.small * 2
+                implicitHeight: badgeLayout.implicitHeight + Tokens.padding.extraSmall * 2
+
+                Row {
+                    id: badgeLayout
+                    anchors.centerIn: parent
+                    spacing: Tokens.spacing.extraSmall
+
+                    MaterialIcon {
+                        visible: root.formatIcon !== ""
+                        text: root.formatIcon
+                        fontStyle: Tokens.font.icon.small
+                        color: Colours.palette.m3onSurface
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    StyledText {
+                        visible: root.formatText !== ""
+                        text: root.formatText
+                        font: Tokens.font.label.small
+                        color: Colours.palette.m3onSurface
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            StyledRect {
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.margins: Tokens.spacing.small
+
+                visible: root.fpsText !== ""
+                color: Qt.rgba(Colours.palette.m3surfaceContainer.r, Colours.palette.m3surfaceContainer.g, Colours.palette.m3surfaceContainer.b, 0.8)
+                radius: Tokens.rounding.small
+                implicitWidth: fpsLayout.implicitWidth + Tokens.padding.small * 2
+                implicitHeight: fpsLayout.implicitHeight + Tokens.padding.extraSmall * 2
+
+                Row {
+                    id: fpsLayout
+                    anchors.centerIn: parent
+                    spacing: Tokens.spacing.extraSmall
+
+                    MaterialIcon {
+                        text: "speed"
+                        fontStyle: Tokens.font.icon.small
+                        color: Colours.palette.m3onSurface
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    StyledText {
+                        text: root.fpsText
+                        font: Tokens.font.label.small
+                        color: Colours.palette.m3onSurface
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            StyledRect {
+                anchors.bottom: parent.bottom
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.margins: Tokens.spacing.small
+
+                visible: root.resText !== ""
+                color: Qt.rgba(Colours.palette.m3surfaceContainer.r, Colours.palette.m3surfaceContainer.g, Colours.palette.m3surfaceContainer.b, 0.8)
+                radius: Tokens.rounding.small
+                implicitWidth: resLayout.implicitWidth + Tokens.padding.small * 2
+                implicitHeight: resLayout.implicitHeight + Tokens.padding.extraSmall * 2
+
+                Row {
+                    id: resLayout
+                    anchors.centerIn: parent
+                    spacing: Tokens.spacing.extraSmall
+
+                    MaterialIcon {
+                        text: "aspect_ratio"
+                        fontStyle: Tokens.font.icon.small
+                        color: Colours.palette.m3onSurface
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    StyledText {
+                        text: root.resText
+                        font: Tokens.font.label.small
+                        color: Colours.palette.m3onSurface
+                        anchors.verticalCenter: parent.verticalCenter
                     }
                 }
             }

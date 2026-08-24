@@ -19,6 +19,63 @@ PageBase {
     title: qsTr("Wallpapers")
     isSubPage: true
 
+    property int displayLimit: 20
+    readonly property int pageSize: 20
+
+    property int filterMode: 2
+
+    property var filteredList: []
+
+    readonly property real cellWidth: Math.floor((root.cappedWidth - (Config.nexus.wallpapersPerRow - 1) * grid.columnSpacing) / Config.nexus.wallpapersPerRow)
+
+    function isRootWall(w) {
+        return Wallpapers.getCategoryFor(w) === "All";
+    }
+
+    function updateFilteredList() {
+        const walls = Wallpapers.rawEntries || [];
+        const mode = root.filterMode;
+        const categories = {};
+        const list = [];
+
+        for (let i = 0; i < walls.length; i++) {
+            const w = walls[i];
+            const isVid = Wallpapers.isVideo(w.path);
+            if (mode === 0 && isVid)
+                continue;  // Static
+            if (mode === 1 && !isVid)
+                continue; // Animated
+
+            const cat = Wallpapers.getCategoryFor(w);
+            if (cat !== "All") {
+                if (!(cat in categories) || categories[cat].name.localeCompare(w.name) > 0)
+                    categories[cat] = w;
+            } else {
+                list.push(w);
+            }
+        }
+        list.push(...Object.values(categories));
+        list.sort((a, b) => (isRootWall(a) - isRootWall(b)) || a.name.localeCompare(b.name));
+        root.filteredList = list;
+    }
+
+    Component.onCompleted: updateFilteredList()
+
+    onFilterModeChanged: {
+        root.displayLimit = root.pageSize;
+        root.updateFilteredList();
+    }
+
+    data: [
+        Connections {
+            target: Wallpapers
+            function onRawEntriesChanged() {
+                root.displayLimit = root.pageSize;
+                root.updateFilteredList();
+            }
+        }
+    ]
+
     ColumnLayout {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
@@ -67,29 +124,79 @@ PageBase {
                     root.nState.closeSubPage();
                 }
             }
+
+            IconTextButton {
+                icon: "refresh"
+                text: qsTr("Rescan")
+                font: Tokens.font.body.large
+                isRound: true
+                shapeMorph: true
+                horizontalPadding: Tokens.padding.large
+                verticalPadding: Tokens.padding.medium
+                type: IconTextButton.Tonal
+                onClicked: Wallpapers.refreshAnimatedThumbs()
+            }
         }
 
         WallItem {
-            imgHeight: Math.round(width * 0.3)
+            Layout.fillWidth: true
+            imgHeight: Math.round(root.cappedWidth * 0.3)
             radius: Tokens.rounding.extraLarge
-            source: Quickshell.shellPath("assets/wallpaper.webp")
+            source: Wallpapers.fallback
             text: qsTr("Featured wallpaper")
             fillLabel: false
             onClicked: {
-                Wallpapers.setWallpaper(Quickshell.shellPath("assets/wallpaper.webp"));
+                Wallpapers.setWallpaper(Wallpapers.fallback);
                 root.nState.closeSubPage();
             }
         }
 
-        StyledText {
+        RowLayout {
             Layout.topMargin: Tokens.spacing.large
-            text: qsTr("Local wallpapers")
-            font: Tokens.font.title.small
+            Layout.fillWidth: true
+
+            StyledText {
+                text: qsTr("Local wallpapers")
+                font: Tokens.font.title.small
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            Item {
+                Layout.fillWidth: true
+            }
+
+            ButtonRow {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: Tokens.spacing.small
+
+                IconTextButton {
+                    icon: "collections"
+                    text: qsTr("All")
+                    isToggle: true
+                    checked: root.filterMode === 2
+                    onClicked: root.filterMode = 2
+                }
+                IconTextButton {
+                    icon: "image"
+                    text: qsTr("Static")
+                    isToggle: true
+                    checked: root.filterMode === 0
+                    onClicked: root.filterMode = 0
+                }
+                IconTextButton {
+                    icon: "smart_display"
+                    text: qsTr("Animated")
+                    isToggle: true
+                    checked: root.filterMode === 1
+                    onClicked: root.filterMode = 1
+                }
+            }
         }
 
         GridLayout {
+            id: grid
             Layout.fillWidth: true
-            visible: localWalls.count > 0
+            visible: root.filteredList.length > 0
 
             columns: Config.nexus.wallpapersPerRow
             rowSpacing: Tokens.spacing.medium
@@ -97,64 +204,81 @@ PageBase {
 
             Repeater {
                 id: localWalls
-
-                model: {
-                    const walls = Wallpapers.list;
-                    const baseDir = Paths.wallsdir;
-                    const categories = {};
-                    const list = [];
-                    for (const w of walls) {
-                        if (w.parentDir !== baseDir) {
-                            const category = Wallpapers.getCategoryFor(w);
-                            if (category && (!(category in categories) || categories[category].name.localeCompare(w.name) > 0))
-                                categories[category] = w;
-                        } else {
-                            list.push(w);
-                        }
-                    }
-                    list.push(...Object.values(categories));
-                    list.sort((a, b) => ((a.parentDir === baseDir) - (b.parentDir === baseDir)) || a.name.localeCompare(b.name));
-                    while (list.length < Config.nexus.wallpapersPerRow)
-                        list.push(null);
-                    return list;
-                }
+                model: root.filteredList.slice(0, root.displayLimit)
 
                 WallItem {
-                    required property FileSystemEntry modelData
+                    required property var modelData
 
-                    // Empty placeholders for sizing
-                    opacity: modelData ? 1 : 0
-                    enabled: modelData
+                    Layout.preferredWidth: root.cellWidth
+                    Layout.maximumWidth: root.cellWidth
+                    Layout.fillWidth: false
 
-                    source: String(modelData?.path ?? "")
+                    readonly property bool isCategoryFolder: !!modelData && Wallpapers.getCategoryFor(modelData) !== "All"
+                    readonly property var fileProperties: {
+                        const _ = Wallpapers.cacheBuster;
+                        return Wallpapers.getParsedProperty(modelData?.path);
+                    }
+
+                    source: {
+                        if (!modelData)
+                            return "";
+                        const path = String(modelData.path);
+                        if (Wallpapers.isVideo(path)) {
+                            return Wallpapers.getWallpaperThumb(path, Wallpapers.cacheBuster);
+                        }
+                        return path;
+                    }
+                    formatIcon: {
+                        if (!modelData)
+                            return "";
+                        if (isCategoryFolder)
+                            return "folder";
+                        return Wallpapers.isVideo(modelData.path) ? "smart_display" : "image";
+                    }
+                    formatText: isCategoryFolder ? "" : fileProperties.format
+                    fpsText: isCategoryFolder ? "" : fileProperties.fps
+                    resText: isCategoryFolder ? "" : fileProperties.resolution
                     text: {
                         if (!modelData)
                             return "";
-
-                        if (modelData.parentDir !== Paths.wallsdir) {
-                            const category = Wallpapers.getCategoryFor(modelData);
-                            return category.slice(0, 1).toUpperCase() + category.slice(1);
+                        const cat = Wallpapers.getCategoryFor(modelData);
+                        if (cat !== "All") {
+                            return cat.slice(0, 1).toUpperCase() + cat.slice(1);
                         }
                         return modelData.name;
                     }
                     onClicked: {
-                        if (modelData.parentDir !== Paths.wallsdir) {
-                            root.nState.selectedWallpaperCategory = Wallpapers.getCategoryFor(modelData);
-                            root.nState.openSubPage(2); // Category page
-                        } else {
-                            Wallpapers.setWallpaper(modelData.path);
-                            root.nState.closeSubPage();
+                        if (modelData) {
+                            const cat = Wallpapers.getCategoryFor(modelData);
+                            if (cat !== "All") {
+                                root.nState.selectedWallpaperCategory = cat;
+                                root.nState.openSubPage(2);
+                            } else {
+                                Wallpapers.setWallpaper(modelData.path);
+                                Qt.callLater(() => {
+                                    if (root.nState)
+                                        root.nState.closeSubPage();
+                                });
+                            }
                         }
                     }
                 }
             }
         }
 
+        IconTextButton {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: Tokens.spacing.medium
+            visible: root.filteredList.length > root.displayLimit
+            icon: "expand_more"
+            text: qsTr("Show more (%1 remaining)").arg(root.filteredList.length - root.displayLimit)
+            type: IconTextButton.Tonal
+            onClicked: root.displayLimit += root.pageSize
+        }
+
         Loader {
             Layout.fillWidth: true
-
-            asynchronous: true
-            active: localWalls.count === 0
+            active: root.filteredList.length === 0
             visible: active
 
             sourceComponent: StyledRect {
