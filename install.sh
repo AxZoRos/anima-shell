@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 
 ## ==============================================================================
-## Caelestia Live - Installer & Deployment Script
-## Dynamic Video Wallpaper, Hardware Acceleration & Fluid Shell Suite
-## Repository: https://github.com/AxZoRos/shell
-## CLI Repo:   https://github.com/AxZoRos/cli
+## Anima Shell - Installer & Deployment Script
+## Dynamic Video Wallpapers, Hardware Acceleration & Fluid Desktop Suite
+## Repository: https://github.com/AxZoRos/anima-shell
+## CLI Repo:   https://github.com/AxZoRos/anima-cli
 ## ==============================================================================
 
 set -euo pipefail
 
 # Script Constants
-readonly APP_NAME="caelestia-live"
-readonly SHELL_REPO="https://github.com/AxZoRos/shell.git"
-readonly CLI_REPO="https://github.com/AxZoRos/cli.git"
+readonly APP_NAME="anima-shell"
+readonly SHELL_REPO="https://github.com/AxZoRos/anima-shell.git"
+readonly CLI_REPO="https://github.com/AxZoRos/anima-cli.git"
 
 readonly SRC_DIR="$HOME/.local/src"
-readonly SHELL_SRC="$SRC_DIR/caelestia-shell-live"
-readonly CLI_SRC="$SRC_DIR/caelestia-cli-live"
+readonly SHELL_SRC="$SRC_DIR/anima-shell"
+readonly CLI_SRC="$SRC_DIR/anima-cli"
 
-readonly BACKUP_DIR="$HOME/.local/share/caelestia-live/backups"
+readonly BACKUP_DIR="$HOME/.local/share/caelestia-anima/backups"
 readonly SYSTEM_QS_DIR="/etc/xdg/quickshell/caelestia"
 readonly USER_QS_DIR="$HOME/.config/quickshell/caelestia"
 readonly CACHE_DIR="$HOME/.cache/caelestia"
@@ -121,13 +121,13 @@ print_header() {
     if command -v gum &>/dev/null; then
         gum style --border normal --border-foreground 14 --padding "0 2" --bold \
             "+-------------------------------------------------------------+" \
-            "|                     CAELESTIA LIVE                          |" \
-            "|      Dynamic Video Wallpaper, C++ Plugins & Shell Suite     |" \
+            "|                       ANIMA SHELL                           |" \
+            "|      Dynamic Video Wallpaper, C++ Plugins & Desktop Suite   |" \
             "+-------------------------------------------------------------+"
     else
         echo -e "\e[1;36m+-------------------------------------------------------------+\e[0m"
-        echo -e "\e[1;36m|                     CAELESTIA LIVE                          |\e[0m"
-        echo -e "\e[1;36m|      Dynamic Video Wallpaper, C++ Plugins & Shell Suite     |\e[0m"
+        echo -e "\e[1;36m|                       ANIMA SHELL                           |\e[0m"
+        echo -e "\e[1;36m|      Dynamic Video Wallpaper, C++ Plugins & Desktop Suite   |\e[0m"
         echo -e "\e[1;36m+-------------------------------------------------------------+\e[0m"
     fi
     echo ""
