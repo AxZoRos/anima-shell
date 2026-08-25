@@ -25,8 +25,8 @@
 You can install Anima Shell using the built-in interactive deployment script:
 
 ```bash
-git clone --depth 1 https://github.com/AxZoRos/anima-shell.git ~/.local/src/anima-shell
-cd ~/.local/src/anima-shell
+git clone https://github.com/AxZoRos/anima-shell.git
+cd anima-shell
 ./install.sh
 ```
 
