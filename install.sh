@@ -458,16 +458,18 @@ build_and_deploy_shell() {
     [[ ! -d "$SHELL_SRC" ]] && { error "Shell repository not found in $SHELL_SRC. Clone it first."; return 1; }
 
     log_step "Configuring and compiling Caelestia C++ plugin..."
-    local build_dir="$SHELL_SRC/build"
-
     local git_rev
-    git_rev=$(cd "$SHELL_SRC" && git rev-parse HEAD 2>/dev/null || echo "live")
+    git_rev=$(cd "$SHELL_SRC" && git rev-parse HEAD 2>/dev/null || echo "main")
+
+    local git_ver
+    git_ver=$(cd "$SHELL_SRC" && git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "2.3.0")
+    [[ -z "$git_ver" || "$git_ver" =~ [^0-9.] ]] && git_ver="2.3.0"
 
     # Run CMake configuration and build
     cmake -B "$build_dir" -S "$SHELL_SRC" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/usr \
-        -DVERSION="live" \
+        -DVERSION="$git_ver" \
         -DGIT_REVISION="$git_rev"
 
     spin "Compiling plugin & dependencies..." cmake --build "$build_dir"
