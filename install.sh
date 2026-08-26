@@ -12,7 +12,7 @@ readonly CLI_REF="main"
 
 readonly DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/caelestia-anima"
 readonly BACKUP_DIR="$DATA_DIR/backups"
-readonly PRISTINE_DIR="$DATA_DIR/pristine_backup"
+readonly INITIAL_BACKUP_DIR="$DATA_DIR/pre_anima_backup"
 readonly PERMANENT_SHELL_SRC="$DATA_DIR/shell"
 
 if [[ -f "$SCRIPT_DIR/shell.qml" && -f "$SCRIPT_DIR/CMakeLists.txt" ]]; then
@@ -613,65 +613,65 @@ prompt_user_configurations() {
     done
 }
 
-save_pristine_backup() {
-    mkdir -p "$PRISTINE_DIR"
+save_initial_backup() {
+    mkdir -p "$INITIAL_BACKUP_DIR"
 
     # 1. System Shell
-    if [[ ! -e "$PRISTINE_DIR/shell_original" && ! -f "$PRISTINE_DIR/shell_original.absent" ]]; then
+    if [[ ! -e "$INITIAL_BACKUP_DIR/shell_original" && ! -f "$INITIAL_BACKUP_DIR/shell_original.absent" ]]; then
         if [[ -d "$SYSTEM_QS_DIR" ]]; then
-            log_to_file "Creating protected pristine backup of $SYSTEM_QS_DIR -> $PRISTINE_DIR/shell_original"
-            sudo cp -r "$SYSTEM_QS_DIR" "$PRISTINE_DIR/shell_original"
-            sudo chown -R "$(id -u):$(id -g)" "$PRISTINE_DIR/shell_original"
-            [[ -d "$PRISTINE_DIR/shell_original" ]] || { error "Failed to create pristine shell backup. Aborting."; exit 1; }
+            log_to_file "Creating protected initial backup of $SYSTEM_QS_DIR -> $INITIAL_BACKUP_DIR/shell_original"
+            sudo cp -r "$SYSTEM_QS_DIR" "$INITIAL_BACKUP_DIR/shell_original"
+            sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/shell_original"
+            [[ -d "$INITIAL_BACKUP_DIR/shell_original" ]] || { error "Failed to create initial shell backup. Aborting."; exit 1; }
         else
-            touch "$PRISTINE_DIR/shell_original.absent"
+            touch "$INITIAL_BACKUP_DIR/shell_original.absent"
         fi
     fi
 
     # 2. User Shell
-    if [[ ! -e "$PRISTINE_DIR/user_shell_original" && ! -f "$PRISTINE_DIR/user_shell_original.absent" ]]; then
+    if [[ ! -e "$INITIAL_BACKUP_DIR/user_shell_original" && ! -f "$INITIAL_BACKUP_DIR/user_shell_original.absent" ]]; then
         if [[ -d "$USER_QS_DIR" ]]; then
-            log_to_file "Creating protected pristine backup of $USER_QS_DIR -> $PRISTINE_DIR/user_shell_original"
-            cp -r "$USER_QS_DIR" "$PRISTINE_DIR/user_shell_original"
-            [[ -d "$PRISTINE_DIR/user_shell_original" ]] || { error "Failed to create pristine user shell backup. Aborting."; exit 1; }
+            log_to_file "Creating protected initial backup of $USER_QS_DIR -> $INITIAL_BACKUP_DIR/user_shell_original"
+            cp -r "$USER_QS_DIR" "$INITIAL_BACKUP_DIR/user_shell_original"
+            [[ -d "$INITIAL_BACKUP_DIR/user_shell_original" ]] || { error "Failed to create initial user shell backup. Aborting."; exit 1; }
         else
-            touch "$PRISTINE_DIR/user_shell_original.absent"
+            touch "$INITIAL_BACKUP_DIR/user_shell_original.absent"
         fi
     fi
 
     # 3. Python CLI
     local site_pkg
     site_pkg=$(detect_caelestia_pkg_path)
-    if [[ ! -e "$PRISTINE_DIR/cli_original" && ! -f "$PRISTINE_DIR/cli_original.absent" ]]; then
+    if [[ ! -e "$INITIAL_BACKUP_DIR/cli_original" && ! -f "$INITIAL_BACKUP_DIR/cli_original.absent" ]]; then
         if [[ -n "$site_pkg" && -d "$site_pkg" ]]; then
-            log_to_file "Creating protected pristine backup of $site_pkg -> $PRISTINE_DIR/cli_original"
-            sudo cp -r "$site_pkg" "$PRISTINE_DIR/cli_original"
-            sudo chown -R "$(id -u):$(id -g)" "$PRISTINE_DIR/cli_original"
-            [[ -d "$PRISTINE_DIR/cli_original" ]] || { error "Failed to create pristine CLI backup. Aborting."; exit 1; }
+            log_to_file "Creating protected initial backup of $site_pkg -> $INITIAL_BACKUP_DIR/cli_original"
+            sudo cp -r "$site_pkg" "$INITIAL_BACKUP_DIR/cli_original"
+            sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/cli_original"
+            [[ -d "$INITIAL_BACKUP_DIR/cli_original" ]] || { error "Failed to create initial CLI backup. Aborting."; exit 1; }
         else
-            touch "$PRISTINE_DIR/cli_original.absent"
+            touch "$INITIAL_BACKUP_DIR/cli_original.absent"
         fi
     fi
 
     # 4. Qt6 QML Plugin
     local qml_plugin_dir
     qml_plugin_dir=$(detect_qt6_qml_plugin_path)
-    if [[ ! -e "$PRISTINE_DIR/plugin_original" ]]; then
+    if [[ ! -e "$INITIAL_BACKUP_DIR/plugin_original" ]]; then
         if [[ -n "$qml_plugin_dir" && -d "$qml_plugin_dir" ]]; then
-            rm -f "$PRISTINE_DIR/plugin_original.absent"
-            log_to_file "Creating protected pristine backup of $qml_plugin_dir -> $PRISTINE_DIR/plugin_original"
-            sudo cp -r "$qml_plugin_dir" "$PRISTINE_DIR/plugin_original"
-            sudo chown -R "$(id -u):$(id -g)" "$PRISTINE_DIR/plugin_original"
-            [[ -d "$PRISTINE_DIR/plugin_original" ]] || { error "Failed to create pristine plugin backup. Aborting."; exit 1; }
+            rm -f "$INITIAL_BACKUP_DIR/plugin_original.absent"
+            log_to_file "Creating protected initial backup of $qml_plugin_dir -> $INITIAL_BACKUP_DIR/plugin_original"
+            sudo cp -r "$qml_plugin_dir" "$INITIAL_BACKUP_DIR/plugin_original"
+            sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/plugin_original"
+            [[ -d "$INITIAL_BACKUP_DIR/plugin_original" ]] || { error "Failed to create initial plugin backup. Aborting."; exit 1; }
         else
-            touch "$PRISTINE_DIR/plugin_original.absent"
+            touch "$INITIAL_BACKUP_DIR/plugin_original.absent"
         fi
     fi
 }
 
 create_shell_backup() {
     local target="$1"
-    save_pristine_backup
+    save_initial_backup
     mkdir -p "$BACKUP_DIR"
 
     if [[ -d "$target" && -n "$(ls -A "$target" 2>/dev/null)" ]]; then
@@ -708,7 +708,7 @@ create_shell_backup() {
 create_cli_backup() {
     local site_pkg
     site_pkg=$(detect_caelestia_pkg_path)
-    save_pristine_backup
+    save_initial_backup
     mkdir -p "$BACKUP_DIR"
 
     if [[ -n "$site_pkg" && -d "$site_pkg" ]]; then
@@ -1092,9 +1092,9 @@ revert_to_upstream_caelestia() {
     echo ""
     info "================================================================"
     info "  Successfully uninstalled Anima Shell & restored Caelestia!"
-    if [[ -d "$PRISTINE_DIR" ]]; then
+    if [[ -d "$INITIAL_BACKUP_DIR" ]]; then
         info "  Original pre-Anima snapshot is preserved at:"
-        info "  $PRISTINE_DIR"
+        info "  $INITIAL_BACKUP_DIR"
     fi
     info "================================================================"
     press_enter
@@ -1492,7 +1492,7 @@ main_menu() {
             "[2] Update Anima Shell" \
             "[3] Repair / Re-apply Patches" \
             "[4] Backup Manager & Restore" \
-            "[5] Uninstall Anima Shell" \
+            "[5] Uninstall Anima / Restore Upstream Caelestia" \
             "[0] Exit")
 
         case "$choice" in
@@ -1508,7 +1508,7 @@ main_menu() {
             "[4] Backup Manager & Restore")
                 manage_backups
                 ;;
-            "[5] Uninstall Anima Shell")
+            "[5] Uninstall Anima / Restore Upstream Caelestia")
                 uninstall_caelestia
                 ;;
             "[0] Exit"|*)
