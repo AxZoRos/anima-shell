@@ -71,7 +71,21 @@ Item {
         }
     }
 
-    onRawEntriesChanged: thumbUpdateDebounce.restart()
+    onRawEntriesChanged: {
+        thumbUpdateDebounce.restart();
+        if (rawEntries && rawEntries.length > 0) {
+            let videoList = rawEntries.filter(w => isVideo(w.path));
+            if (videoList.length === 0) {
+                root._pendingSpiralTarget = "";
+                root.allThumbsReady = true;
+                root.generationQueue = [];
+            } else if (root._pendingSpiralTarget !== "") {
+                let target = root._pendingSpiralTarget;
+                root._pendingSpiralTarget = "";
+                root.startSpiralQueue(target);
+            }
+        }
+    }
 
     Timer {
         id: thumbUpdateDebounce
@@ -92,10 +106,19 @@ Item {
             }
         }
         root.existingThumbHashes = set;
-        if (!root.rawEntries || root.rawEntries.length === 0)
+        if (!root.rawEntries || root.rawEntries.length === 0) {
+            root.allThumbsReady = true;
             return;
+        }
 
         let videoList = root.rawEntries.filter(w => isVideo(w.path));
+        if (videoList.length === 0) {
+            root.allThumbsReady = true;
+            root._pendingSpiralTarget = "";
+            root.generationQueue = [];
+            return;
+        }
+
         let missingCount = 0;
         for (let i = 0; i < videoList.length; i++) {
             let clean = String(videoList[i].path || "").split(/[?#]/)[0].replace(/^file:\/\//, "");
@@ -109,7 +132,7 @@ Item {
             }
         }
 
-        root.allThumbsReady = (missingCount === 0) && (videoList.length > 0);
+        root.allThumbsReady = (missingCount === 0);
     }
 
     Component.onCompleted: {
@@ -148,15 +171,22 @@ Item {
     }
 
     function startSpiralQueue(centerPathHint) {
-        if (allThumbsReady && !_refreshing) {
+        if (!rawEntries || rawEntries.length === 0) {
+            root._pendingSpiralTarget = centerPathHint || actualCurrent || "";
             return;
         }
         let videoList = rawEntries.filter(w => isVideo(w.path));
         if (videoList.length === 0) {
-            root._pendingSpiralTarget = centerPathHint || actualCurrent || "";
+            root._pendingSpiralTarget = "";
+            root.allThumbsReady = true;
+            root.generationQueue = [];
             return;
         }
         root._pendingSpiralTarget = "";
+
+        if (allThumbsReady && !_refreshing) {
+            return;
+        }
 
         let missingVideos = [];
         let seenMissingPaths = new Set();
