@@ -1012,19 +1012,27 @@ revert_to_upstream_caelestia() {
 
     # Phase 1: Download all sources first
     log_step "Fetching official upstream Caelestia Shell from GitHub..."
-    git clone --depth 1 "https://github.com/caelestia-dots/shell.git" "$stock_shell_tmp" &>>"$LOG_FILE" &
+    git clone --depth 1 --tags "https://github.com/caelestia-dots/shell.git" "$stock_shell_tmp" &>>"$LOG_FILE" &
     spinner $! "Cloning upstream shell"
 
     log_step "Fetching official upstream Caelestia CLI from GitHub..."
-    git clone --depth 1 "https://github.com/caelestia-dots/cli.git" "$stock_cli_tmp" &>>"$LOG_FILE" &
+    git clone --depth 1 --tags "https://github.com/caelestia-dots/cli.git" "$stock_cli_tmp" &>>"$LOG_FILE" &
     spinner $! "Cloning upstream CLI"
+
+    local git_rev
+    git_rev=$(cd "$stock_shell_tmp" && git rev-parse HEAD 2>/dev/null || echo "main")
+    local git_ver
+    git_ver=$(cd "$stock_shell_tmp" && git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "2.3.0")
+    [[ -z "$git_ver" || "$git_ver" =~ [^0-9.] ]] && git_ver="2.3.0"
 
     # Phase 2: Build C++ plugins
     log_step "Configuring and building upstream Caelestia Shell..."
     (
         cmake -B "$stock_shell_tmp/build" -S "$stock_shell_tmp" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DVERSION="$git_ver" \
+            -DGIT_REVISION="$git_rev"
         cmake --build "$stock_shell_tmp/build"
     ) &>>"$LOG_FILE" &
     spinner $! "Compiling upstream plugins"
@@ -1526,12 +1534,21 @@ uninstall_caelestia() {
         warn "Pristine C++ plugin snapshot not found. Compiling stock plugins from official upstream GitHub..."
         local stock_plugin_tmp
         stock_plugin_tmp=$(mktemp -d /tmp/stock_plugin_XXXXXX)
-        git clone --depth 1 "https://github.com/caelestia-dots/shell.git" "$stock_plugin_tmp" &>>"$LOG_FILE" &
+        git clone --depth 1 --tags "https://github.com/caelestia-dots/shell.git" "$stock_plugin_tmp" &>>"$LOG_FILE" &
         spinner $! "Cloning upstream shell plugins"
+
+        local git_rev
+        git_rev=$(cd "$stock_plugin_tmp" && git rev-parse HEAD 2>/dev/null || echo "main")
+        local git_ver
+        git_ver=$(cd "$stock_plugin_tmp" && git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "2.3.0")
+        [[ -z "$git_ver" || "$git_ver" =~ [^0-9.] ]] && git_ver="2.3.0"
+
         (
             cmake -B "$stock_plugin_tmp/build" -S "$stock_plugin_tmp" -G Ninja \
                 -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX=/usr
+                -DCMAKE_INSTALL_PREFIX=/usr \
+                -DVERSION="$git_ver" \
+                -DGIT_REVISION="$git_rev"
             cmake --build "$stock_plugin_tmp/build"
             sudo cmake --install "$stock_plugin_tmp/build" --component plugin 2>/dev/null || sudo cmake --install "$stock_plugin_tmp/build"
         ) &>>"$LOG_FILE" &
