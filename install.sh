@@ -656,8 +656,9 @@ save_pristine_backup() {
     # 4. Qt6 QML Plugin
     local qml_plugin_dir
     qml_plugin_dir=$(detect_qt6_qml_plugin_path)
-    if [[ ! -e "$PRISTINE_DIR/plugin_original" && ! -f "$PRISTINE_DIR/plugin_original.absent" ]]; then
+    if [[ ! -e "$PRISTINE_DIR/plugin_original" ]]; then
         if [[ -n "$qml_plugin_dir" && -d "$qml_plugin_dir" ]]; then
+            rm -f "$PRISTINE_DIR/plugin_original.absent"
             log_to_file "Creating protected pristine backup of $qml_plugin_dir -> $PRISTINE_DIR/plugin_original"
             sudo cp -r "$qml_plugin_dir" "$PRISTINE_DIR/plugin_original"
             sudo chown -R "$(id -u):$(id -g)" "$PRISTINE_DIR/plugin_original"
@@ -1515,17 +1516,28 @@ uninstall_caelestia() {
     # 4. Qt6 QML Plugin
     local qml_plugin_dir
     qml_plugin_dir=$(detect_qt6_qml_plugin_path)
-    if [[ -f "$PRISTINE_DIR/plugin_original.absent" ]]; then
-        if [[ -n "$qml_plugin_dir" && -d "$qml_plugin_dir" ]]; then
-            sudo rm -rf "$qml_plugin_dir"
-            info "Removed Anima Qt6 plugin ($qml_plugin_dir)"
-        fi
-    elif [[ -d "$PRISTINE_DIR/plugin_original" && -n "$qml_plugin_dir" ]]; then
-        log_step "Restoring original Qt6 C++ plugins..."
+    if [[ -d "$PRISTINE_DIR/plugin_original" && -n "$qml_plugin_dir" ]]; then
+        log_step "Restoring original Qt6 C++ plugins from pristine backup..."
         sudo rm -rf "$qml_plugin_dir"
         sudo cp -r "$PRISTINE_DIR/plugin_original" "$qml_plugin_dir"
         sudo chown -R root:root "$qml_plugin_dir"
         info "Restored original Qt6 plugins in $qml_plugin_dir"
+    else
+        warn "Pristine C++ plugin snapshot not found. Compiling stock plugins from official upstream GitHub..."
+        local stock_plugin_tmp
+        stock_plugin_tmp=$(mktemp -d /tmp/stock_plugin_XXXXXX)
+        git clone --depth 1 "https://github.com/caelestia-dots/shell.git" "$stock_plugin_tmp" &>>"$LOG_FILE" &
+        spinner $! "Cloning upstream shell plugins"
+        (
+            cmake -B "$stock_plugin_tmp/build" -S "$stock_plugin_tmp" -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=/usr
+            cmake --build "$stock_plugin_tmp/build"
+            sudo cmake --install "$stock_plugin_tmp/build" --component plugin 2>/dev/null || sudo cmake --install "$stock_plugin_tmp/build"
+        ) &>>"$LOG_FILE" &
+        spinner $! "Compiling & restoring stock plugins"
+        rm -rf "$stock_plugin_tmp" 2>/dev/null || true
+        info "Official stock C++ plugins compiled and restored."
     fi
 
     log_step "Cleaning cache..."
