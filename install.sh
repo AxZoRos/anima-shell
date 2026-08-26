@@ -1030,9 +1030,17 @@ install_python_cli() {
 }
 
 apply_settings() {
+    local force="${1:-false}"
     log_section "Applying Configuration"
-    log_step "Writing initial configuration..."
+    log_step "Writing configuration..."
     mkdir -p "$STATE_DIR" "$CACHE_DIR/videothumbs"
+
+    local ui_state_file="$STATE_DIR/ui_state.json"
+
+    if [[ "$force" != "true" && -f "$ui_state_file" ]]; then
+        info "Preserving existing user settings in $ui_state_file"
+        return 0
+    fi
 
     local b_mode=0
     if [[ "$ENABLE_BADGES" != "true" ]]; then
@@ -1044,7 +1052,6 @@ apply_settings() {
         anim_enabled="False"
     fi
 
-    local ui_state_file="$STATE_DIR/ui_state.json"
     log_to_file "Writing state to $ui_state_file: decoder=$SELECTED_DECODER, badges=$ENABLE_BADGES, animation=$TRANSITION_STYLE"
 
     python3 - "$ui_state_file" "$b_mode" "$anim_enabled" "$SELECTED_DECODER" << 'EOF' &>>"$LOG_FILE" || true
@@ -1115,7 +1122,7 @@ full_installation() {
 
     build_and_deploy_shell
     install_python_cli
-    apply_settings
+    apply_settings "true"
     restart_shell
 
     echo ""
@@ -1145,7 +1152,7 @@ update_anima_shell() {
 
     build_and_deploy_shell
     install_python_cli
-    apply_settings
+    apply_settings "false"
     restart_shell
 
     echo ""
@@ -1233,7 +1240,7 @@ repair_installation() {
     info "QML files re-applied."
 
     install_python_cli
-    apply_settings
+    apply_settings "false"
     restart_shell
 
     echo ""
