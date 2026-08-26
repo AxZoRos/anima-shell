@@ -1536,38 +1536,10 @@ uninstall_caelestia() {
         sudo chown -R root:root "$qml_plugin_dir"
         info "Restored original Qt6 plugins in $qml_plugin_dir"
     else
-        warn "Pristine C++ plugin snapshot not found. Compiling stock plugins from official upstream GitHub..."
-        local stock_plugin_tmp
-        stock_plugin_tmp=$(mktemp -d /tmp/stock_plugin_XXXXXX)
-        git clone --depth 1 --tags "https://github.com/caelestia-dots/shell.git" "$stock_plugin_tmp" &>>"$LOG_FILE" &
-        spinner $! "Cloning upstream shell plugins"
-
-        local git_rev
-        git_rev=$(cd "$stock_plugin_tmp" && git rev-parse HEAD 2>/dev/null || echo "main")
-        local git_ver
-        git_ver=$(cd "$stock_plugin_tmp" && git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "2.3.0")
-        [[ -z "$git_ver" || "$git_ver" =~ [^0-9.] ]] && git_ver="2.3.0"
-
-        (
-            cmake -B "$stock_plugin_tmp/build" -S "$stock_plugin_tmp" -G Ninja \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX=/usr \
-                -DCMAKE_INSTALL_SYSCONFDIR=/etc \
-                -DCMAKE_INSTALL_LIBDIR=lib \
-                -DVERSION="$git_ver" \
-                -DGIT_REVISION="$git_rev"
-        ) &>>"$LOG_FILE" &
-        spinner $! "CMake configuration"
-
-        run_compile_step "Compiling stock plugins" cmake --build "$stock_plugin_tmp/build"
-
-        install_stock_plugin() {
-            sudo cmake --install "$stock_plugin_tmp/build"
-        }
-        run_step "Stock C++ plugins installed" install_stock_plugin
-
-        rm -rf "$stock_plugin_tmp" 2>/dev/null || true
-        info "Official stock C++ plugins compiled and restored."
+        warn "Pristine C++ plugin snapshot was not found on this machine."
+        info "Switching to full upstream Caelestia restoration to prevent component mismatch..."
+        revert_to_upstream_caelestia
+        return 0
     fi
 
     log_step "Cleaning cache..."
