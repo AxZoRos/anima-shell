@@ -767,42 +767,24 @@ restore_full_snapshot() {
     fi
 
     local has_shell=false
-    [[ -d "$BACKUP_DIR/shell_$chosen_tag" ]] && has_shell=true
-
-    local restore_target="/etc/xdg/quickshell/caelestia (default - system-wide)"
-    if [[ "$has_shell" == "true" ]]; then
-        echo ""
-        echo "Restore Shell QML files to:"
-        restore_target=$(choose \
-            "/etc/xdg/quickshell/caelestia (default - system-wide)" \
-            "~/.config/quickshell/caelestia (user config)" \
-            "Cancel and return")
-
-        if [[ "$restore_target" == "Cancel and return" || -z "$restore_target" ]]; then
-            return 0
-        fi
-    fi
-
     ensure_sudo
     log_section "Restoring Full Snapshot ($chosen_tag)"
 
     # 1. Restore Shell
     if [[ "$has_shell" == "true" ]]; then
         local dst
-        if [[ "$restore_target" =~ ^/etc ]]; then
-            dst="$SYSTEM_QS_DIR"
-            log_step "Restoring Shell to $dst (system-wide)..."
-            sudo rm -rf "$dst"
-            sudo mkdir -p "$(dirname "$dst")"
-            sudo cp -r "$BACKUP_DIR/shell_$chosen_tag" "$dst"
+        dst=$(detect_active_shell_target)
+        log_step "Restoring Shell to $dst..."
+        if [[ "$dst" =~ ^/etc ]]; then
+            sudo rm -rf "${dst:?}"/* 2>/dev/null || true
+            sudo mkdir -p "$dst"
+            sudo cp -r "$BACKUP_DIR/shell_$chosen_tag"/. "$dst"/
         else
-            dst="$USER_QS_DIR"
-            log_step "Restoring Shell to $dst (user)..."
-            rm -rf "$dst"
-            mkdir -p "$(dirname "$dst")"
-            cp -r "$BACKUP_DIR/shell_$chosen_tag" "$dst"
+            rm -rf "${dst:?}"/* 2>/dev/null || true
+            mkdir -p "$dst"
+            cp -r "$BACKUP_DIR/shell_$chosen_tag"/. "$dst"/
         fi
-        info "Shell QML files restored."
+        info "Shell QML files restored to $dst"
     fi
 
     # 2. Restore CLI
@@ -1164,12 +1146,18 @@ build_and_deploy_shell() {
 
     log_to_file "Version Tag: $git_ver (Commit: $git_rev)"
 
+    local enable_modules="extras;plugin;m3shapes"
+    if [[ "$INSTALL_TARGET_DIR" =~ ^/etc ]]; then
+        enable_modules="extras;plugin;shell;m3shapes"
+    fi
+
     (
         cmake -B "$build_dir" -S "$SHELL_SRC" -G Ninja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DCMAKE_INSTALL_SYSCONFDIR=/etc \
             -DCMAKE_INSTALL_LIBDIR=lib \
+            -DENABLE_MODULES="$enable_modules" \
             -DVERSION="$git_ver" \
             -DGIT_REVISION="$git_rev" \
             -DDISTRIBUTOR="Anima Shell"
@@ -1291,6 +1279,10 @@ restart_shell() {
     log_step "Restarting Caelestia Shell service..."
     (
         caelestia shell -k 2>/dev/null || true
+        pkill -x quickshell 2>/dev/null || true
+        pkill -f "qs.*caelestia" 2>/dev/null || true
+        pkill -f "quickshell.*caelestia" 2>/dev/null || true
+        pkill -f "caelestia.*shell" 2>/dev/null || true
         sleep 1.2
     ) &>>"$LOG_FILE" &
     spinner $! "Stopping existing Caelestia Shell"
@@ -1301,6 +1293,7 @@ restart_shell() {
 
         if pgrep -f "qs.*caelestia" >/dev/null 2>&1 || \
            pgrep -f "quickshell.*caelestia" >/dev/null 2>&1 || \
+           pgrep -x quickshell >/dev/null 2>&1 || \
            pgrep -f "caelestia.*shell" >/dev/null 2>&1; then
             exit 0
         else
