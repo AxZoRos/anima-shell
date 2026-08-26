@@ -169,7 +169,11 @@ confirm() {
     local prompt="$1"
     local default_yes="${2:-false}"
     if command -v gum &>/dev/null; then
-        gum confirm "$prompt"
+        if [[ "$default_yes" == "true" ]]; then
+            gum confirm --default=true "$prompt"
+        else
+            gum confirm --default=false "$prompt"
+        fi
     else
         if [[ "$default_yes" == "true" ]]; then
             echo -n "$prompt [Y/n]: "
@@ -257,6 +261,16 @@ ensure_sudo() {
     sudo -v || { error "Administrator privileges are required to proceed."; exit 1; }
 }
 
+detect_caelestia_shell() {
+    local dir
+    for dir in "$SYSTEM_QS_DIR" "$USER_QS_DIR"; do
+        if [[ -f "$dir/shell.qml" && -d "$dir/modules" && -d "$dir/services" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 detect_caelestia_pkg_path() {
     python3 -c "
 import importlib.util, os
@@ -275,14 +289,31 @@ else:
 detect_qt6_qml_plugin_path() {
     local qml_dir
     qml_dir=$(qmake6 -query QT_INSTALL_QML 2>/dev/null || qtpaths6 --query-path QT_INSTALL_QML 2>/dev/null || qmake -query QT_INSTALL_QML 2>/dev/null || echo "")
-    if [[ -n "$qml_dir" && "$qml_dir" != "/" && -d "$qml_dir" ]]; then
-        echo "$qml_dir/caelestia"
-    elif [[ -d "/usr/lib64/qt6/qml" ]]; then
-        echo "/usr/lib64/qt6/qml/caelestia"
-    elif [[ -d "/usr/lib/x86_64-linux-gnu/qt6/qml" ]]; then
-        echo "/usr/lib/x86_64-linux-gnu/qt6/qml/caelestia"
+
+    local candidates=()
+    if [[ -n "$qml_dir" && "$qml_dir" != "/" ]]; then
+        candidates+=("$qml_dir/Caelestia" "$qml_dir/caelestia")
+    fi
+    candidates+=(
+        "/usr/lib/qt6/qml/Caelestia"
+        "/usr/lib/qt6/qml/caelestia"
+        "/usr/lib64/qt6/qml/Caelestia"
+        "/usr/lib64/qt6/qml/caelestia"
+        "/usr/lib/x86_64-linux-gnu/qt6/qml/Caelestia"
+        "/usr/lib/x86_64-linux-gnu/qt6/qml/caelestia"
+    )
+
+    for dir in "${candidates[@]}"; do
+        if [[ -d "$dir" ]]; then
+            echo "$dir"
+            return 0
+        fi
+    done
+
+    if [[ -n "$qml_dir" && "$qml_dir" != "/" ]]; then
+        echo "$qml_dir/Caelestia"
     else
-        echo "/usr/lib/qt6/qml/caelestia"
+        echo "/usr/lib/qt6/qml/Caelestia"
     fi
 }
 
@@ -347,13 +378,11 @@ install_dependencies() {
     ensure_sudo
     log_section "Verifying System Dependencies"
 
-    if ! command -v caelestia &>/dev/null && [[ ! -d "$SYSTEM_QS_DIR" && ! -d "$USER_QS_DIR" ]]; then
-        warn "Caelestia Shell does not appear to be installed on this system."
-        warn "Anima Shell is designed to enhance an existing Caelestia Shell installation."
-        if ! confirm "Caelestia Shell was not detected. Do you still want to proceed?"; then
-            error "Installation aborted: Please install Caelestia Shell first."
-            exit 1
-        fi
+    if ! detect_caelestia_shell; then
+        error "Caelestia Shell was not found on this system."
+        error "Anima Shell is an enhancement patch designed to work on top of an existing Caelestia Shell installation."
+        error "Please install the official Caelestia Shell first before installing Anima Shell."
+        exit 1
     fi
 
     log_step "Checking and installing required dependencies..."
@@ -667,9 +696,11 @@ create_shell_backup() {
         log_step "Creating safety backup of C++ plugin -> $plugin_archive..."
         sudo cp -r "$qml_plugin_dir" "$plugin_archive"
         sudo chown -R "$(id -u):$(id -g)" "$plugin_archive"
-        if [[ -d "$plugin_archive" ]]; then
-            info "Plugin backup verified: $plugin_archive"
+        if [[ ! -d "$plugin_archive" ]]; then
+            error "Failed to create safety backup of C++ plugin ($qml_plugin_dir). Aborting installation."
+            exit 1
         fi
+        info "Plugin backup verified: $plugin_archive"
     fi
 }
 
@@ -690,6 +721,134 @@ create_cli_backup() {
         fi
         info "CLI backup verified: $cli_archive"
     fi
+}
+
+restore_full_snapshot() {
+    if [[ ! -d "$BACKUP_DIR" ]] || [[ -z "$(ls -A "$BACKUP_DIR" 2>/dev/null)" ]]; then
+        warn "No backups available to restore."
+        press_enter
+        return 0
+    fi
+
+    # Find all unique date tags
+    local date_tags=()
+    while IFS= read -r tag; do
+        [[ -n "$tag" ]] && date_tags+=("$tag")
+    done < <(find "$BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | \
+             sed -nE 's/.*(shell|cli|plugin)_([0-9]{8}_[0-9]{6})$/\2/p' | sort -ur)
+
+    if [[ ${#date_tags[@]} -eq 0 ]]; then
+        warn "No timestamped snapshot sets found in $BACKUP_DIR."
+        press_enter
+        return 0
+    fi
+
+    echo ""
+    echo "Select Full Snapshot date to restore (Shell + CLI + Plugin):"
+    local menu_items=()
+    for tag in "${date_tags[@]}"; do
+        local components=()
+        [[ -d "$BACKUP_DIR/shell_$tag" ]] && components+=("Shell")
+        [[ -d "$BACKUP_DIR/cli_$tag" ]] && components+=("CLI")
+        [[ -d "$BACKUP_DIR/plugin_$tag" ]] && components+=("Plugin")
+
+        local comp_str
+        comp_str=$(IFS=, ; echo "${components[*]}")
+
+        local human_date="${tag:0:4}-${tag:4:2}-${tag:6:2} ${tag:9:2}:${tag:11:2}:${tag:13:2}"
+        menu_items+=("$human_date ($tag) [$comp_str]")
+    done
+
+    menu_items+=("Cancel and return")
+
+    local selected
+    selected=$(choose "${menu_items[@]}")
+
+    if [[ "$selected" == "Cancel and return" || -z "$selected" ]]; then
+        return 0
+    fi
+
+    local chosen_tag
+    chosen_tag=$(echo "$selected" | grep -oE '[0-9]{8}_[0-9]{6}')
+
+    if [[ -z "$chosen_tag" ]]; then
+        error "Could not parse snapshot timestamp."
+        press_enter
+        return 1
+    fi
+
+    local has_shell=false
+    [[ -d "$BACKUP_DIR/shell_$chosen_tag" ]] && has_shell=true
+
+    local restore_target="/etc/xdg/quickshell/caelestia (default - system-wide)"
+    if [[ "$has_shell" == "true" ]]; then
+        echo ""
+        echo "Restore Shell QML files to:"
+        restore_target=$(choose \
+            "/etc/xdg/quickshell/caelestia (default - system-wide)" \
+            "~/.config/quickshell/caelestia (user config)" \
+            "Cancel and return")
+
+        if [[ "$restore_target" == "Cancel and return" || -z "$restore_target" ]]; then
+            return 0
+        fi
+    fi
+
+    ensure_sudo
+    log_section "Restoring Full Snapshot ($chosen_tag)"
+
+    # 1. Restore Shell
+    if [[ "$has_shell" == "true" ]]; then
+        local dst
+        if [[ "$restore_target" =~ ^/etc ]]; then
+            dst="$SYSTEM_QS_DIR"
+            log_step "Restoring Shell to $dst (system-wide)..."
+            sudo rm -rf "$dst"
+            sudo mkdir -p "$(dirname "$dst")"
+            sudo cp -r "$BACKUP_DIR/shell_$chosen_tag" "$dst"
+        else
+            dst="$USER_QS_DIR"
+            log_step "Restoring Shell to $dst (user)..."
+            rm -rf "$dst"
+            mkdir -p "$(dirname "$dst")"
+            cp -r "$BACKUP_DIR/shell_$chosen_tag" "$dst"
+        fi
+        info "Shell QML files restored."
+    fi
+
+    # 2. Restore CLI
+    if [[ -d "$BACKUP_DIR/cli_$chosen_tag" ]]; then
+        local py_pkg
+        py_pkg=$(detect_caelestia_pkg_path)
+        if [[ -n "$py_pkg" ]]; then
+            log_step "Restoring Python CLI to $py_pkg..."
+            sudo rm -rf "$py_pkg"
+            sudo cp -r "$BACKUP_DIR/cli_$chosen_tag" "$py_pkg"
+            sudo chown -R root:root "$py_pkg"
+            info "Python CLI package restored."
+        fi
+    fi
+
+    # 3. Restore C++ Plugin
+    if [[ -d "$BACKUP_DIR/plugin_$chosen_tag" ]]; then
+        local qml_plugin_dir
+        qml_plugin_dir=$(detect_qt6_qml_plugin_path)
+        if [[ -n "$qml_plugin_dir" ]]; then
+            log_step "Restoring Qt6 C++ plugin to $qml_plugin_dir..."
+            sudo rm -rf "$qml_plugin_dir"
+            sudo cp -r "$BACKUP_DIR/plugin_$chosen_tag" "$qml_plugin_dir"
+            sudo chown -R root:root "$qml_plugin_dir"
+            info "Qt6 C++ plugin restored."
+        fi
+    fi
+
+    restart_shell
+
+    echo ""
+    info "================================================================"
+    info "  Full snapshot ($chosen_tag) restored successfully!"
+    info "================================================================"
+    press_enter
 }
 
 restore_single_backup() {
@@ -834,15 +993,32 @@ revert_to_upstream_caelestia() {
         return 0
     fi
 
+    ensure_sudo
+
+    local dst="$SYSTEM_QS_DIR"
+    if [[ -d "$USER_QS_DIR" ]]; then
+        dst="$USER_QS_DIR"
+    fi
+
+    # Create safety backup before performing reset
+    create_shell_backup "$dst"
+    create_cli_backup
+
     local stock_shell_tmp
     stock_shell_tmp=$(mktemp -d /tmp/stock_shell_XXXXXX)
     local stock_cli_tmp
     stock_cli_tmp=$(mktemp -d /tmp/stock_cli_XXXXXX)
 
+    # Phase 1: Download all sources first
     log_step "Fetching official upstream Caelestia Shell from GitHub..."
     git clone --depth 1 "https://github.com/caelestia-dots/shell.git" "$stock_shell_tmp" &>>"$LOG_FILE" &
     spinner $! "Cloning upstream shell"
 
+    log_step "Fetching official upstream Caelestia CLI from GitHub..."
+    git clone --depth 1 "https://github.com/caelestia-dots/cli.git" "$stock_cli_tmp" &>>"$LOG_FILE" &
+    spinner $! "Cloning upstream CLI"
+
+    # Phase 2: Build C++ plugins
     log_step "Configuring and building upstream Caelestia Shell..."
     (
         cmake -B "$stock_shell_tmp/build" -S "$stock_shell_tmp" -G Ninja \
@@ -852,16 +1028,12 @@ revert_to_upstream_caelestia() {
     ) &>>"$LOG_FILE" &
     spinner $! "Compiling upstream plugins"
 
+    # Phase 3: Deploy (only after all downloads and builds succeed)
     local install_upstream_plugins
     install_upstream_plugins() {
         sudo cmake --install "$stock_shell_tmp/build" --component plugin 2>/dev/null || sudo cmake --install "$stock_shell_tmp/build"
     }
     run_step "Upstream C++ plugins installed" install_upstream_plugins
-
-    local dst="$SYSTEM_QS_DIR"
-    if [[ -d "$USER_QS_DIR" ]]; then
-        dst="$USER_QS_DIR"
-    fi
 
     log_step "Deploying upstream shell files to $dst..."
     if [[ "$dst" =~ ^/etc ]]; then
@@ -875,16 +1047,13 @@ revert_to_upstream_caelestia() {
     fi
     info "Upstream shell deployed to $dst"
 
-    log_step "Fetching official upstream Caelestia CLI from GitHub..."
-    git clone --depth 1 "https://github.com/caelestia-dots/cli.git" "$stock_cli_tmp" &>>"$LOG_FILE" &
-    spinner $! "Cloning upstream CLI"
-
     local site_pkg
     site_pkg=$(detect_caelestia_pkg_path)
 
     if [[ -n "$site_pkg" && -d "$site_pkg" ]]; then
         (
-            sudo cp -a "$stock_cli_tmp/src/caelestia/." "$site_pkg/"
+            sudo rm -rf "$site_pkg"
+            sudo cp -r "$stock_cli_tmp/src/caelestia" "$site_pkg"
             sudo chown -R root:root "$site_pkg"
         ) &>>"$LOG_FILE" &
         spinner $! "Restoring upstream CLI package"
@@ -935,23 +1104,27 @@ manage_backups() {
 
         local choice
         choice=$(choose \
-            "[1] Restore a Backup" \
-            "[2] Delete a Specific Backup" \
-            "[3] Delete ALL Backups (Purge)" \
-            "[4] Reset / Revert to Stock Upstream Caelestia" \
+            "[1] Restore Full Snapshot by Date (Shell + CLI + Plugin)" \
+            "[2] Restore Individual Component (Single Backup)" \
+            "[3] Delete a Specific Backup" \
+            "[4] Delete ALL Backups (Purge)" \
+            "[5] Reset / Revert to Stock Upstream Caelestia" \
             "[0] Return to Main Menu")
 
         case "$choice" in
-            "[1] Restore a Backup")
+            "[1] Restore Full Snapshot by Date (Shell + CLI + Plugin)")
+                restore_full_snapshot
+                ;;
+            "[2] Restore Individual Component (Single Backup)")
                 restore_single_backup
                 ;;
-            "[2] Delete a Specific Backup")
+            "[3] Delete a Specific Backup")
                 delete_single_backup
                 ;;
-            "[3] Delete ALL Backups (Purge)")
+            "[4] Delete ALL Backups (Purge)")
                 delete_all_backups
                 ;;
-            "[4] Reset / Revert to Stock Upstream Caelestia")
+            "[5] Reset / Revert to Stock Upstream Caelestia")
                 revert_to_upstream_caelestia
                 ;;
             "[0] Return to Main Menu"|*)
@@ -1115,8 +1288,7 @@ restart_shell() {
 
         if pgrep -f "qs.*caelestia" >/dev/null 2>&1 || \
            pgrep -f "quickshell.*caelestia" >/dev/null 2>&1 || \
-           pgrep -x "quickshell" >/dev/null 2>&1 || \
-           pgrep -x "qs" >/dev/null 2>&1; then
+           pgrep -f "caelestia.*shell" >/dev/null 2>&1; then
             exit 0
         else
             echo "ERROR: Caelestia shell crashed on startup. Check log for details: $LOG_FILE" >> "$LOG_FILE"
