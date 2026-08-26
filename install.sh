@@ -1026,21 +1026,22 @@ revert_to_upstream_caelestia() {
     [[ -z "$git_ver" || "$git_ver" =~ [^0-9.] ]] && git_ver="2.3.0"
 
     # Phase 2: Build C++ plugins
-    log_step "Configuring and building upstream Caelestia Shell..."
+    log_step "Configuring upstream Caelestia Shell..."
     (
         cmake -B "$stock_shell_tmp/build" -S "$stock_shell_tmp" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DVERSION="$git_ver" \
             -DGIT_REVISION="$git_rev"
-        cmake --build "$stock_shell_tmp/build"
     ) &>>"$LOG_FILE" &
-    spinner $! "Compiling upstream plugins"
+    spinner $! "CMake configuration"
+
+    run_compile_step "Compiling upstream plugins" cmake --build "$stock_shell_tmp/build"
 
     # Phase 3: Deploy (only after all downloads and builds succeed)
     local install_upstream_plugins
     install_upstream_plugins() {
-        sudo cmake --install "$stock_shell_tmp/build" --component plugin 2>/dev/null || sudo cmake --install "$stock_shell_tmp/build"
+        sudo cmake --install "$stock_shell_tmp/build"
     }
     run_step "Upstream C++ plugins installed" install_upstream_plugins
 
@@ -1175,7 +1176,7 @@ build_and_deploy_shell() {
     run_compile_step "Compiling C++ plugins" cmake --build "$build_dir"
 
     install_shell_plugin() {
-        sudo cmake --install "$build_dir" --component plugin 2>/dev/null || sudo cmake --install "$build_dir"
+        sudo cmake --install "$build_dir"
     }
     run_step "C++ plugins installed" install_shell_plugin
 
@@ -1549,10 +1550,16 @@ uninstall_caelestia() {
                 -DCMAKE_INSTALL_PREFIX=/usr \
                 -DVERSION="$git_ver" \
                 -DGIT_REVISION="$git_rev"
-            cmake --build "$stock_plugin_tmp/build"
-            sudo cmake --install "$stock_plugin_tmp/build" --component plugin 2>/dev/null || sudo cmake --install "$stock_plugin_tmp/build"
         ) &>>"$LOG_FILE" &
-        spinner $! "Compiling & restoring stock plugins"
+        spinner $! "CMake configuration"
+
+        run_compile_step "Compiling stock plugins" cmake --build "$stock_plugin_tmp/build"
+
+        install_stock_plugin() {
+            sudo cmake --install "$stock_plugin_tmp/build"
+        }
+        run_step "Stock C++ plugins installed" install_stock_plugin
+
         rm -rf "$stock_plugin_tmp" 2>/dev/null || true
         info "Official stock C++ plugins compiled and restored."
     fi
