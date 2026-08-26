@@ -28,7 +28,6 @@ readonly SYSTEM_QS_DIR="/etc/xdg/quickshell/caelestia"
 readonly USER_QS_DIR="$HOME/.config/quickshell/caelestia"
 readonly CACHE_DIR="$HOME/.cache/caelestia"
 readonly STATE_DIR="$HOME/.local/state/caelestia/wallpaper"
-readonly DATE_TAG=$(date +%Y%m%d_%H%M%S)
 
 INSTALL_TARGET_DIR="$SYSTEM_QS_DIR"
 SELECTED_DECODER="vaapi"
@@ -259,6 +258,16 @@ detect_aur_helper() {
 
 ensure_sudo() {
     sudo -v || { error "Administrator privileges are required to proceed."; exit 1; }
+}
+
+detect_active_shell_target() {
+    if [[ -f "$USER_QS_DIR/shell.qml" ]]; then
+        echo "$USER_QS_DIR"
+    elif [[ -f "$SYSTEM_QS_DIR/shell.qml" ]]; then
+        echo "$SYSTEM_QS_DIR"
+    else
+        echo "$SYSTEM_QS_DIR"
+    fi
 }
 
 detect_caelestia_shell() {
@@ -617,65 +626,44 @@ save_initial_backup() {
     mkdir -p "$INITIAL_BACKUP_DIR"
 
     # 1. System Shell
-    if [[ ! -e "$INITIAL_BACKUP_DIR/shell_original" && ! -f "$INITIAL_BACKUP_DIR/shell_original.absent" ]]; then
-        if [[ -d "$SYSTEM_QS_DIR" ]]; then
-            log_to_file "Creating protected initial backup of $SYSTEM_QS_DIR -> $INITIAL_BACKUP_DIR/shell_original"
-            sudo cp -r "$SYSTEM_QS_DIR" "$INITIAL_BACKUP_DIR/shell_original"
-            sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/shell_original"
-            [[ -d "$INITIAL_BACKUP_DIR/shell_original" ]] || { error "Failed to create initial shell backup. Aborting."; exit 1; }
-        else
-            touch "$INITIAL_BACKUP_DIR/shell_original.absent"
-        fi
+    if [[ ! -e "$INITIAL_BACKUP_DIR/shell_original" && -d "$SYSTEM_QS_DIR" ]]; then
+        log_to_file "Creating protected initial backup of $SYSTEM_QS_DIR -> $INITIAL_BACKUP_DIR/shell_original"
+        sudo cp -r "$SYSTEM_QS_DIR" "$INITIAL_BACKUP_DIR/shell_original"
+        sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/shell_original"
     fi
 
     # 2. User Shell
-    if [[ ! -e "$INITIAL_BACKUP_DIR/user_shell_original" && ! -f "$INITIAL_BACKUP_DIR/user_shell_original.absent" ]]; then
-        if [[ -d "$USER_QS_DIR" ]]; then
-            log_to_file "Creating protected initial backup of $USER_QS_DIR -> $INITIAL_BACKUP_DIR/user_shell_original"
-            cp -r "$USER_QS_DIR" "$INITIAL_BACKUP_DIR/user_shell_original"
-            [[ -d "$INITIAL_BACKUP_DIR/user_shell_original" ]] || { error "Failed to create initial user shell backup. Aborting."; exit 1; }
-        else
-            touch "$INITIAL_BACKUP_DIR/user_shell_original.absent"
-        fi
+    if [[ ! -e "$INITIAL_BACKUP_DIR/user_shell_original" && -d "$USER_QS_DIR" ]]; then
+        log_to_file "Creating protected initial backup of $USER_QS_DIR -> $INITIAL_BACKUP_DIR/user_shell_original"
+        cp -r "$USER_QS_DIR" "$INITIAL_BACKUP_DIR/user_shell_original"
     fi
 
     # 3. Python CLI
     local site_pkg
     site_pkg=$(detect_caelestia_pkg_path)
-    if [[ ! -e "$INITIAL_BACKUP_DIR/cli_original" && ! -f "$INITIAL_BACKUP_DIR/cli_original.absent" ]]; then
-        if [[ -n "$site_pkg" && -d "$site_pkg" ]]; then
-            log_to_file "Creating protected initial backup of $site_pkg -> $INITIAL_BACKUP_DIR/cli_original"
-            sudo cp -r "$site_pkg" "$INITIAL_BACKUP_DIR/cli_original"
-            sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/cli_original"
-            [[ -d "$INITIAL_BACKUP_DIR/cli_original" ]] || { error "Failed to create initial CLI backup. Aborting."; exit 1; }
-        else
-            touch "$INITIAL_BACKUP_DIR/cli_original.absent"
-        fi
+    if [[ ! -e "$INITIAL_BACKUP_DIR/cli_original" && -n "$site_pkg" && -d "$site_pkg" ]]; then
+        log_to_file "Creating protected initial backup of $site_pkg -> $INITIAL_BACKUP_DIR/cli_original"
+        sudo cp -r "$site_pkg" "$INITIAL_BACKUP_DIR/cli_original"
+        sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/cli_original"
     fi
 
     # 4. Qt6 QML Plugin
     local qml_plugin_dir
     qml_plugin_dir=$(detect_qt6_qml_plugin_path)
-    if [[ ! -e "$INITIAL_BACKUP_DIR/plugin_original" ]]; then
-        if [[ -n "$qml_plugin_dir" && -d "$qml_plugin_dir" ]]; then
-            rm -f "$INITIAL_BACKUP_DIR/plugin_original.absent"
-            log_to_file "Creating protected initial backup of $qml_plugin_dir -> $INITIAL_BACKUP_DIR/plugin_original"
-            sudo cp -r "$qml_plugin_dir" "$INITIAL_BACKUP_DIR/plugin_original"
-            sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/plugin_original"
-            [[ -d "$INITIAL_BACKUP_DIR/plugin_original" ]] || { error "Failed to create initial plugin backup. Aborting."; exit 1; }
-        else
-            touch "$INITIAL_BACKUP_DIR/plugin_original.absent"
-        fi
+    if [[ ! -e "$INITIAL_BACKUP_DIR/plugin_original" && -n "$qml_plugin_dir" && -d "$qml_plugin_dir" ]]; then
+        log_to_file "Creating protected initial backup of $qml_plugin_dir -> $INITIAL_BACKUP_DIR/plugin_original"
+        sudo cp -r "$qml_plugin_dir" "$INITIAL_BACKUP_DIR/plugin_original"
+        sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/plugin_original"
     fi
 }
 
 create_shell_backup() {
     local target="$1"
-    save_initial_backup
+    local tag="${2:-$(date +%Y%m%d_%H%M%S)}"
     mkdir -p "$BACKUP_DIR"
 
     if [[ -d "$target" && -n "$(ls -A "$target" 2>/dev/null)" ]]; then
-        local archive="$BACKUP_DIR/shell_${DATE_TAG}"
+        local archive="$BACKUP_DIR/shell_${tag}"
         log_step "Creating safety backup of $target -> $archive..."
         if [[ "$target" =~ ^/etc ]]; then
             sudo cp -r "$target" "$archive"
@@ -693,7 +681,7 @@ create_shell_backup() {
     local qml_plugin_dir
     qml_plugin_dir=$(detect_qt6_qml_plugin_path)
     if [[ -n "$qml_plugin_dir" && -d "$qml_plugin_dir" ]]; then
-        local plugin_archive="$BACKUP_DIR/plugin_${DATE_TAG}"
+        local plugin_archive="$BACKUP_DIR/plugin_${tag}"
         log_step "Creating safety backup of C++ plugin -> $plugin_archive..."
         sudo cp -r "$qml_plugin_dir" "$plugin_archive"
         sudo chown -R "$(id -u):$(id -g)" "$plugin_archive"
@@ -706,13 +694,13 @@ create_shell_backup() {
 }
 
 create_cli_backup() {
+    local tag="${1:-$(date +%Y%m%d_%H%M%S)}"
     local site_pkg
     site_pkg=$(detect_caelestia_pkg_path)
-    save_initial_backup
     mkdir -p "$BACKUP_DIR"
 
     if [[ -n "$site_pkg" && -d "$site_pkg" ]]; then
-        local cli_archive="$BACKUP_DIR/cli_${DATE_TAG}"
+        local cli_archive="$BACKUP_DIR/cli_${tag}"
         log_step "Creating safety backup of Python CLI -> $cli_archive..."
         sudo cp -r "$site_pkg" "$cli_archive"
         sudo chown -R "$(id -u):$(id -g)" "$cli_archive"
@@ -996,14 +984,15 @@ revert_to_upstream_caelestia() {
 
     ensure_sudo
 
-    local dst="$SYSTEM_QS_DIR"
-    if [[ -d "$USER_QS_DIR" ]]; then
-        dst="$USER_QS_DIR"
-    fi
+    local dst
+    dst=$(detect_active_shell_target)
+    info "Target Directory detected: $dst"
 
     # Create safety backup before performing reset
-    create_shell_backup "$dst"
-    create_cli_backup
+    local snapshot_tag
+    snapshot_tag="$(date +%Y%m%d_%H%M%S)"
+    create_shell_backup "$dst" "$snapshot_tag"
+    create_cli_backup "$snapshot_tag"
 
     local stock_shell_tmp
     stock_shell_tmp=$(mktemp -d /tmp/stock_shell_XXXXXX)
@@ -1335,9 +1324,14 @@ full_installation() {
         return 0
     fi
 
+    # Create protected initial backup on first install
+    save_initial_backup
+
     # Create safety backups before any modifications
-    create_shell_backup "$INSTALL_TARGET_DIR"
-    create_cli_backup
+    local snapshot_tag
+    snapshot_tag="$(date +%Y%m%d_%H%M%S)"
+    create_shell_backup "$INSTALL_TARGET_DIR" "$snapshot_tag"
+    create_cli_backup "$snapshot_tag"
 
     build_and_deploy_shell
     install_python_cli
@@ -1362,12 +1356,17 @@ update_anima_shell() {
     ensure_sudo
     echo ""
 
+    INSTALL_TARGET_DIR=$(detect_active_shell_target)
+    info "Detected active installation directory: $INSTALL_TARGET_DIR"
+
     install_dependencies
     clone_or_update_repos
 
     # Create safety backups before any modifications
-    create_shell_backup "$INSTALL_TARGET_DIR"
-    create_cli_backup
+    local snapshot_tag
+    snapshot_tag="$(date +%Y%m%d_%H%M%S)"
+    create_shell_backup "$INSTALL_TARGET_DIR" "$snapshot_tag"
+    create_cli_backup "$snapshot_tag"
 
     build_and_deploy_shell
     install_python_cli
@@ -1432,17 +1431,16 @@ repair_installation() {
 
     ensure_sudo
 
-    if [[ -d "$USER_QS_DIR" ]]; then
-        INSTALL_TARGET_DIR="$USER_QS_DIR"
-    elif [[ -d "$SYSTEM_QS_DIR" ]]; then
-        INSTALL_TARGET_DIR="$SYSTEM_QS_DIR"
-    fi
+    INSTALL_TARGET_DIR=$(detect_active_shell_target)
+    info "Detected active installation directory: $INSTALL_TARGET_DIR"
 
     clone_or_update_repos
 
     # Create safety backups before applying patches
-    create_shell_backup "$INSTALL_TARGET_DIR"
-    create_cli_backup
+    local snapshot_tag
+    snapshot_tag="$(date +%Y%m%d_%H%M%S)"
+    create_shell_backup "$INSTALL_TARGET_DIR" "$snapshot_tag"
+    create_cli_backup "$snapshot_tag"
 
     log_step "Re-applying Anima QML files to $INSTALL_TARGET_DIR..."
     if [[ "$INSTALL_TARGET_DIR" =~ ^/etc ]]; then
