@@ -1463,16 +1463,33 @@ repair_installation() {
     press_enter
 }
 
+is_valid_pristine_shell_backup() {
+    local dir="$PRISTINE_DIR/shell_original"
+    if [[ -d "$dir" && -f "$dir/shell.qml" && -d "$dir/modules" && -d "$dir/services" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+is_valid_pristine_plugin_backup() {
+    local dir="$PRISTINE_DIR/plugin_original"
+    if [[ -d "$dir" && -f "$dir/qmldir" && -f "$dir/libcaelestia-coreplugin.so" && -d "$dir/Config" ]]; then
+        return 0
+    fi
+    return 1
+}
+
 uninstall_caelestia() {
     print_header
     warn "Uninstall Anima Shell / Revert to Original Caelestia"
     echo ""
 
-    if [[ ! -d "$PRISTINE_DIR/shell_original" && ! -f "$PRISTINE_DIR/shell_original.absent" ]]; then
-        warn "No pristine backup or state marker found on this system."
-        echo "To safely restore upstream Caelestia, the installer can download, build and install official upstream stock directly from GitHub."
+    if ! is_valid_pristine_shell_backup || ! is_valid_pristine_plugin_backup; then
+        warn "Pristine backup is incomplete or missing valid original components on this system."
+        echo "To safely restore Caelestia to a 100% working state, the installer will download,"
+        echo "compile, and cleanly install official upstream Caelestia directly from GitHub."
         echo ""
-        if confirm "Would you like to revert to clean upstream Caelestia now?"; then
+        if confirm "Would you like to restore clean official upstream Caelestia now?"; then
             revert_to_upstream_caelestia
         fi
         return 0
@@ -1506,6 +1523,7 @@ uninstall_caelestia() {
         sudo rm -rf "$SYSTEM_QS_DIR"
         sudo mkdir -p "$SYSTEM_QS_DIR"
         sudo cp -r "$PRISTINE_DIR/shell_original/." "$SYSTEM_QS_DIR/"
+        sudo chmod -R a+rX "$SYSTEM_QS_DIR"
         info "Restored original /etc/xdg/quickshell/caelestia from pristine backup."
     fi
 
@@ -1523,17 +1541,19 @@ uninstall_caelestia() {
         sudo rm -rf "$site_pkg"
         sudo cp -r "$PRISTINE_DIR/cli_original" "$site_pkg"
         sudo chown -R root:root "$site_pkg"
+        sudo chmod -R a+rX "$site_pkg"
         info "Restored original Python CLI package to $site_pkg"
     fi
 
     # 4. Qt6 QML Plugin
     local qml_plugin_dir
     qml_plugin_dir=$(detect_qt6_qml_plugin_path)
-    if [[ -d "$PRISTINE_DIR/plugin_original" && -n "$qml_plugin_dir" ]]; then
+    if is_valid_pristine_plugin_backup && [[ -n "$qml_plugin_dir" ]]; then
         log_step "Restoring original Qt6 C++ plugins from pristine backup..."
         sudo rm -rf "$qml_plugin_dir"
         sudo cp -r "$PRISTINE_DIR/plugin_original" "$qml_plugin_dir"
         sudo chown -R root:root "$qml_plugin_dir"
+        sudo chmod -R a+rX "$qml_plugin_dir"
         info "Restored original Qt6 plugins in $qml_plugin_dir"
     else
         warn "Pristine C++ plugin snapshot was not found on this machine."
