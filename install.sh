@@ -659,6 +659,18 @@ create_shell_backup() {
         fi
         info "Shell backup verified: $archive"
     fi
+
+    local qml_plugin_dir
+    qml_plugin_dir=$(detect_qt6_qml_plugin_path)
+    if [[ -n "$qml_plugin_dir" && -d "$qml_plugin_dir" ]]; then
+        local plugin_archive="$BACKUP_DIR/plugin_${DATE_TAG}"
+        log_step "Creating safety backup of C++ plugin -> $plugin_archive..."
+        sudo cp -r "$qml_plugin_dir" "$plugin_archive"
+        sudo chown -R "$(id -u):$(id -g)" "$plugin_archive"
+        if [[ -d "$plugin_archive" ]]; then
+            info "Plugin backup verified: $plugin_archive"
+        fi
+    fi
 }
 
 create_cli_backup() {
@@ -714,6 +726,17 @@ restore_single_backup() {
             sudo cp -r "$selected_path" "$py_pkg"
             sudo chown -R root:root "$py_pkg"
             info "Python CLI restored successfully from $selected!"
+        fi
+    elif [[ "$selected" =~ ^plugin_ ]]; then
+        local qml_plugin_dir
+        qml_plugin_dir=$(detect_qt6_qml_plugin_path)
+        if [[ -n "$qml_plugin_dir" ]]; then
+            log_step "Restoring C++ plugin to $qml_plugin_dir..."
+            sudo rm -rf "$qml_plugin_dir"
+            sudo cp -r "$selected_path" "$qml_plugin_dir"
+            sudo chown -R root:root "$qml_plugin_dir"
+            info "Qt6 C++ plugin restored successfully from $selected!"
+            restart_shell
         fi
     else
         echo "Restore target directory:"
@@ -857,12 +880,12 @@ revert_to_upstream_caelestia() {
     spinner $! "Cloning upstream CLI"
 
     local site_pkg
-    site_pkg=$(python3 -c "import site; print(site.getsitepackages()[0] if site.getsitepackages() else '')" 2>/dev/null || echo "")
+    site_pkg=$(detect_caelestia_pkg_path)
 
-    if [[ -n "$site_pkg" && -d "$site_pkg/caelestia" ]]; then
+    if [[ -n "$site_pkg" && -d "$site_pkg" ]]; then
         (
-            sudo cp -a "$stock_cli_tmp/src/caelestia/." "$site_pkg/caelestia/"
-            sudo chown -R root:root "$site_pkg/caelestia"
+            sudo cp -a "$stock_cli_tmp/src/caelestia/." "$site_pkg/"
+            sudo chown -R root:root "$site_pkg"
         ) &>>"$LOG_FILE" &
         spinner $! "Restoring upstream CLI package"
     else
