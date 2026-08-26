@@ -1079,13 +1079,23 @@ revert_to_upstream_caelestia() {
         spinner $! "Installing upstream CLI"
     fi
 
+    log_step "Cleaning cache..."
+    if confirm "Remove generated video thumbnails and cache ($CACHE_DIR)?"; then
+        rm -rf "$CACHE_DIR"
+        info "Cache removed."
+    fi
+
     rm -rf "$stock_shell_tmp" "$stock_cli_tmp" 2>/dev/null || true
 
     restart_shell
 
     echo ""
     info "================================================================"
-    info "  Successfully reverted to official upstream Caelestia!"
+    info "  Successfully uninstalled Anima Shell & restored Caelestia!"
+    if [[ -d "$PRISTINE_DIR" ]]; then
+        info "  Original pre-Anima snapshot is preserved at:"
+        info "  $PRISTINE_DIR"
+    fi
     info "================================================================"
     press_enter
 }
@@ -1463,118 +1473,8 @@ repair_installation() {
     press_enter
 }
 
-is_valid_pristine_shell_backup() {
-    local dir="$PRISTINE_DIR/shell_original"
-    if [[ -d "$dir" && -f "$dir/shell.qml" && -d "$dir/modules" && -d "$dir/services" ]]; then
-        return 0
-    fi
-    return 1
-}
-
-is_valid_pristine_plugin_backup() {
-    local dir="$PRISTINE_DIR/plugin_original"
-    if [[ -d "$dir" && -f "$dir/qmldir" && -f "$dir/libcaelestia-coreplugin.so" && -d "$dir/Config" ]]; then
-        return 0
-    fi
-    return 1
-}
-
 uninstall_caelestia() {
-    print_header
-    warn "Uninstall Anima Shell / Revert to Original Caelestia"
-    echo ""
-
-    if ! is_valid_pristine_shell_backup || ! is_valid_pristine_plugin_backup; then
-        warn "Pristine backup is incomplete or missing valid original components on this system."
-        echo "To safely restore Caelestia to a 100% working state, the installer will download,"
-        echo "compile, and cleanly install official upstream Caelestia directly from GitHub."
-        echo ""
-        if confirm "Would you like to restore clean official upstream Caelestia now?"; then
-            revert_to_upstream_caelestia
-        fi
-        return 0
-    fi
-
-    echo "This will safely remove Anima Shell modifications and restore your original"
-    echo "Caelestia Shell, C++ plugins, and CLI from the protected initial backup."
-    echo ""
-
-    if ! confirm "Are you sure you want to revert to original Caelestia?"; then
-        return 0
-    fi
-
-    ensure_sudo
-
-    log_step "Restoring original Caelestia Shell..."
-
-    # 1. User config
-    if [[ -f "$PRISTINE_DIR/user_shell_original.absent" ]]; then
-        [[ -d "$USER_QS_DIR" ]] && rm -rf "$USER_QS_DIR" && info "Removed user override $USER_QS_DIR"
-    elif [[ -d "$PRISTINE_DIR/user_shell_original" ]]; then
-        rm -rf "$USER_QS_DIR"
-        cp -r "$PRISTINE_DIR/user_shell_original" "$USER_QS_DIR"
-        info "Restored original user config: $USER_QS_DIR"
-    fi
-
-    # 2. System config
-    if [[ -f "$PRISTINE_DIR/shell_original.absent" ]]; then
-        [[ -d "$SYSTEM_QS_DIR" ]] && sudo rm -rf "$SYSTEM_QS_DIR" && info "Removed $SYSTEM_QS_DIR"
-    elif [[ -d "$PRISTINE_DIR/shell_original" ]]; then
-        sudo rm -rf "$SYSTEM_QS_DIR"
-        sudo mkdir -p "$SYSTEM_QS_DIR"
-        sudo cp -r "$PRISTINE_DIR/shell_original/." "$SYSTEM_QS_DIR/"
-        sudo chmod -R a+rX "$SYSTEM_QS_DIR"
-        info "Restored original /etc/xdg/quickshell/caelestia from pristine backup."
-    fi
-
-    # 3. Python CLI
-    local site_pkg
-    site_pkg=$(detect_caelestia_pkg_path)
-
-    if [[ -f "$PRISTINE_DIR/cli_original.absent" ]]; then
-        if [[ -n "$site_pkg" && -d "$site_pkg" ]]; then
-            sudo rm -rf "$site_pkg"
-            info "Removed Anima Python CLI package ($site_pkg)"
-        fi
-    elif [[ -d "$PRISTINE_DIR/cli_original" && -n "$site_pkg" ]]; then
-        log_step "Restoring original Python CLI..."
-        sudo rm -rf "$site_pkg"
-        sudo cp -r "$PRISTINE_DIR/cli_original" "$site_pkg"
-        sudo chown -R root:root "$site_pkg"
-        sudo chmod -R a+rX "$site_pkg"
-        info "Restored original Python CLI package to $site_pkg"
-    fi
-
-    # 4. Qt6 QML Plugin
-    local qml_plugin_dir
-    qml_plugin_dir=$(detect_qt6_qml_plugin_path)
-    if is_valid_pristine_plugin_backup && [[ -n "$qml_plugin_dir" ]]; then
-        log_step "Restoring original Qt6 C++ plugins from pristine backup..."
-        sudo rm -rf "$qml_plugin_dir"
-        sudo cp -r "$PRISTINE_DIR/plugin_original" "$qml_plugin_dir"
-        sudo chown -R root:root "$qml_plugin_dir"
-        sudo chmod -R a+rX "$qml_plugin_dir"
-        info "Restored original Qt6 plugins in $qml_plugin_dir"
-    else
-        warn "Pristine C++ plugin snapshot was not found on this machine."
-        info "Switching to full upstream Caelestia restoration to prevent component mismatch..."
-        revert_to_upstream_caelestia
-        return 0
-    fi
-
-    log_step "Cleaning cache..."
-    if confirm "Remove generated video thumbnails and cache ($CACHE_DIR)?"; then
-        rm -rf "$CACHE_DIR"
-        info "Cache removed."
-    fi
-
-    restart_shell
-
-    echo ""
-    info "================================================================"
-    info "  Anima Shell uninstalled. Pristine Caelestia restored!"
-    info "================================================================"
-    press_enter
+    revert_to_upstream_caelestia
 }
 
 main_menu() {
