@@ -167,12 +167,19 @@ run_compile_step() {
 
 confirm() {
     local prompt="$1"
+    local default_yes="${2:-false}"
     if command -v gum &>/dev/null; then
         gum confirm "$prompt"
     else
-        echo -n "$prompt [y/N]: "
-        read -r resp
-        [[ "$resp" =~ ^[Yy]$ ]]
+        if [[ "$default_yes" == "true" ]]; then
+            echo -n "$prompt [Y/n]: "
+            read -r resp
+            [[ -z "$resp" || "$resp" =~ ^[Yy]$ ]]
+        else
+            echo -n "$prompt [y/N]: "
+            read -r resp
+            [[ "$resp" =~ ^[Yy]$ ]]
+        fi
     fi
 }
 
@@ -309,7 +316,7 @@ install_gum_if_needed() {
     fi
 
     echo -e "\e[33m[INFO] 'gum' is not installed. It provides an enhanced interactive UI.\e[0m"
-    if confirm "Would you like to install gum now?"; then
+    if confirm "Would you like to install gum now?" true; then
         local mgr
         mgr=$(detect_pkg_mgr)
         local aur
@@ -511,7 +518,7 @@ prompt_user_configurations() {
                 elif [[ "$dec_choice" =~ ^NVDEC ]]; then
                     SELECTED_DECODER="cuda"
                 else
-                    SELECTED_DECODER="software"
+                    SELECTED_DECODER="none"
                 fi
                 info "Video Decoder: $SELECTED_DECODER"
                 step=3
