@@ -1031,6 +1031,8 @@ revert_to_upstream_caelestia() {
         cmake -B "$stock_shell_tmp/build" -S "$stock_shell_tmp" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_INSTALL_SYSCONFDIR=/etc \
+            -DCMAKE_INSTALL_LIBDIR=lib \
             -DVERSION="$git_ver" \
             -DGIT_REVISION="$git_rev"
     ) &>>"$LOG_FILE" &
@@ -1167,6 +1169,8 @@ build_and_deploy_shell() {
         cmake -B "$build_dir" -S "$SHELL_SRC" -G Ninja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_INSTALL_SYSCONFDIR=/etc \
+            -DCMAKE_INSTALL_LIBDIR=lib \
             -DVERSION="$git_ver" \
             -DGIT_REVISION="$git_rev" \
             -DDISTRIBUTOR="Anima Shell"
@@ -1548,6 +1552,8 @@ uninstall_caelestia() {
             cmake -B "$stock_plugin_tmp/build" -S "$stock_plugin_tmp" -G Ninja \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_INSTALL_PREFIX=/usr \
+                -DCMAKE_INSTALL_SYSCONFDIR=/etc \
+                -DCMAKE_INSTALL_LIBDIR=lib \
                 -DVERSION="$git_ver" \
                 -DGIT_REVISION="$git_rev"
         ) &>>"$LOG_FILE" &
