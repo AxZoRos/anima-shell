@@ -265,6 +265,20 @@ else:
 " 2>/dev/null || echo ""
 }
 
+detect_qt6_qml_plugin_path() {
+    local qml_dir
+    qml_dir=$(qmake6 -query QT_INSTALL_QML 2>/dev/null || qtpaths6 --query-path QT_INSTALL_QML 2>/dev/null || qmake -query QT_INSTALL_QML 2>/dev/null || echo "")
+    if [[ -n "$qml_dir" && "$qml_dir" != "/" && -d "$qml_dir" ]]; then
+        echo "$qml_dir/caelestia"
+    elif [[ -d "/usr/lib64/qt6/qml" ]]; then
+        echo "/usr/lib64/qt6/qml/caelestia"
+    elif [[ -d "/usr/lib/x86_64-linux-gnu/qt6/qml" ]]; then
+        echo "/usr/lib/x86_64-linux-gnu/qt6/qml/caelestia"
+    else
+        echo "/usr/lib/qt6/qml/caelestia"
+    fi
+}
+
 git_clone_with_retry() {
     local repo="$1"
     local dest="$2"
@@ -325,6 +339,16 @@ install_gum_if_needed() {
 install_dependencies() {
     ensure_sudo
     log_section "Verifying System Dependencies"
+
+    if ! command -v caelestia &>/dev/null && [[ ! -d "$SYSTEM_QS_DIR" && ! -d "$USER_QS_DIR" ]]; then
+        warn "Caelestia Shell does not appear to be installed on this system."
+        warn "Anima Shell is designed to enhance an existing Caelestia Shell installation."
+        if ! confirm "Caelestia Shell was not detected. Do you still want to proceed?"; then
+            error "Installation aborted: Please install Caelestia Shell first."
+            exit 1
+        fi
+    fi
+
     log_step "Checking and installing required dependencies..."
     local mgr
     mgr=$(detect_pkg_mgr)
@@ -342,15 +366,6 @@ install_dependencies() {
             )
             (sudo pacman -S --needed --noconfirm "${pkgs[@]}") &>>"$LOG_FILE" &
             spinner $! "Verifying system packages"
-
-            if ! command -v quickshell &>/dev/null; then
-                if [[ -n "$aur" ]]; then
-                    ("$aur" -S --needed quickshell-git || "$aur" -S --needed quickshell) &>>"$LOG_FILE" &
-                    spinner $! "Installing quickshell via $aur"
-                else
-                    warn "quickshell not found. Please install quickshell-git via AUR."
-                fi
-            fi
             ;;
 
         dnf)
@@ -603,9 +618,10 @@ save_pristine_backup() {
     fi
 
     # 4. Qt6 QML Plugin
-    local qml_plugin_dir="/usr/lib/qt6/qml/caelestia"
+    local qml_plugin_dir
+    qml_plugin_dir=$(detect_qt6_qml_plugin_path)
     if [[ ! -e "$PRISTINE_DIR/plugin_original" && ! -f "$PRISTINE_DIR/plugin_original.absent" ]]; then
-        if [[ -d "$qml_plugin_dir" ]]; then
+        if [[ -n "$qml_plugin_dir" && -d "$qml_plugin_dir" ]]; then
             log_to_file "Creating protected pristine backup of $qml_plugin_dir -> $PRISTINE_DIR/plugin_original"
             sudo cp -r "$qml_plugin_dir" "$PRISTINE_DIR/plugin_original"
             sudo chown -R "$(id -u):$(id -g)" "$PRISTINE_DIR/plugin_original"
@@ -684,13 +700,13 @@ restore_single_backup() {
 
     if [[ "$selected" =~ ^cli_ ]]; then
         local py_pkg
-        py_pkg=$(python3 -c "import site; print(site.getsitepackages()[0] if site.getsitepackages() else '')" 2>/dev/null || echo "")
+        py_pkg=$(detect_caelestia_pkg_path)
         if [[ -n "$py_pkg" ]]; then
-            log_step "Restoring CLI package to $py_pkg/caelestia..."
-            sudo rm -rf "$py_pkg/caelestia"
-            sudo cp -r "$selected_path" "$py_pkg/caelestia"
-            sudo chown -R root:root "$py_pkg/caelestia"
-            info "Python CLI restored successfully!"
+            log_step "Restoring CLI package to $py_pkg..."
+            sudo rm -rf "$py_pkg"
+            sudo cp -r "$selected_path" "$py_pkg"
+            sudo chown -R root:root "$py_pkg"
+            info "Python CLI restored successfully from $selected!"
         fi
     else
         echo "Restore target directory:"
@@ -1288,13 +1304,14 @@ uninstall_caelestia() {
     fi
 
     # 4. Qt6 QML Plugin
-    local qml_plugin_dir="/usr/lib/qt6/qml/caelestia"
+    local qml_plugin_dir
+    qml_plugin_dir=$(detect_qt6_qml_plugin_path)
     if [[ -f "$PRISTINE_DIR/plugin_original.absent" ]]; then
-        if [[ -d "$qml_plugin_dir" ]]; then
+        if [[ -n "$qml_plugin_dir" && -d "$qml_plugin_dir" ]]; then
             sudo rm -rf "$qml_plugin_dir"
             info "Removed Anima Qt6 plugin ($qml_plugin_dir)"
         fi
-    elif [[ -d "$PRISTINE_DIR/plugin_original" ]]; then
+    elif [[ -d "$PRISTINE_DIR/plugin_original" && -n "$qml_plugin_dir" ]]; then
         log_step "Restoring original Qt6 C++ plugins..."
         sudo rm -rf "$qml_plugin_dir"
         sudo cp -r "$PRISTINE_DIR/plugin_original" "$qml_plugin_dir"
