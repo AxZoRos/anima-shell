@@ -767,6 +767,7 @@ restore_full_snapshot() {
     fi
 
     local has_shell=false
+    [[ -d "$BACKUP_DIR/shell_$chosen_tag" ]] && has_shell=true
     ensure_sudo
     log_section "Restoring Full Snapshot ($chosen_tag)"
 
