@@ -18,7 +18,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pacman -Sy --noconfirm base-devel cmake ninja gcc clazy qt6-declarative qt6-shadertools python libpipewire aubio libqalculate cava git fish grep
+          pacman -Sy --noconfirm base-devel cmake ninja gcc clazy qt6-declarative qt6-shadertools python libpipewire aubio libqalculate git fish grep fftw iniparser alsa-lib
+          git clone --depth 1 https://gitlab.com/Luksy/libcava.git /tmp/libcava
+          cmake -B /tmp/libcava/build -S /tmp/libcava -G Ninja -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build /tmp/libcava/build
+          cmake --install /tmp/libcava/build
 
       - name: Build
         run: |
