@@ -2,6 +2,9 @@ name: Update Docker CI image
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/update-image.yml'
   schedule:
     - cron: "0 0 * * 0"
 
@@ -18,6 +21,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase repo owner
+        id: repo_owner
+        run: |
+          echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Write Dockerfile
         run: |
@@ -43,4 +51,4 @@ jobs:
           context: .
           file: /tmp/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/shell-arch-env:latest
+          tags: ghcr.io/${{ steps.repo_owner.outputs.owner }}/shell-arch-env:latest
