@@ -46,19 +46,20 @@ Item {
             Wallpapers.selectedCategory = "All";
         }
 
-        if (Wallpapers.selectedCategory !== "All") {
-            return Wallpapers.categoryMemory[Wallpapers.selectedCategory] || "";
+        const cat = Wallpapers.selectedCategory;
+        let target = Wallpapers.getCategoryMemory(cat, mode);
+        if (target)
+            return target;
+
+        if (cat === "All") {
+            if (mode === 0)
+                return Wallpapers.isVideo(Wallpapers.actualCurrent) ? Wallpapers.lastStatic : Wallpapers.actualCurrent;
+            if (mode === 1)
+                return Wallpapers.isVideo(Wallpapers.actualCurrent) ? Wallpapers.actualCurrent : Wallpapers.lastAnimated;
+            return Wallpapers.actualCurrent;
         }
 
-        if (mode === 0)
-            return Wallpapers.isVideo(Wallpapers.actualCurrent) ? Wallpapers.lastStatic : Wallpapers.actualCurrent;
-        if (mode === 1)
-            return Wallpapers.isVideo(Wallpapers.actualCurrent) ? Wallpapers.actualCurrent : Wallpapers.lastAnimated;
-        if (Wallpapers.filterMode === 0)
-            return Wallpapers.lastStatic;
-        if (Wallpapers.filterMode === 1)
-            return Wallpapers.lastAnimated;
-        return Wallpapers.actualCurrent;
+        return Wallpapers.getCategoryMemory(cat, 2) || "";
     }
 
     function selectCategoryByIndex(idx) {
@@ -67,17 +68,7 @@ Item {
         const cat = Wallpapers.categories[idx];
         Wallpapers.selectedCategory = cat;
 
-        let target = "";
-        if (cat === "All") {
-            if (Wallpapers.filterMode === 0)
-                target = Wallpapers.lastStatic;
-            else if (Wallpapers.filterMode === 1)
-                target = Wallpapers.lastAnimated;
-            else
-                target = Wallpapers.actualCurrent;
-        } else {
-            target = Wallpapers.categoryMemory[cat] || "";
-        }
+        let target = Wallpapers.getCategoryMemory(cat, Wallpapers.filterMode);
         root.performJump(target);
     }
 
@@ -568,19 +559,7 @@ Item {
                         radius: Tokens.rounding.full
                         onClicked: {
                             Wallpapers.selectedCategory = chip.modelData;
-
-                            let target = "";
-                            if (chip.modelData === "All") {
-                                if (Wallpapers.filterMode === 0)
-                                    target = Wallpapers.lastStatic;
-                                else if (Wallpapers.filterMode === 1)
-                                    target = Wallpapers.lastAnimated;
-                                else
-                                    target = Wallpapers.actualCurrent;
-                            } else {
-                                target = Wallpapers.categoryMemory[chip.modelData] || "";
-                            }
-
+                            let target = Wallpapers.getCategoryMemory(chip.modelData, Wallpapers.filterMode);
                             root.performJump(target);
                         }
                     }
