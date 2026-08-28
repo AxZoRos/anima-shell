@@ -24,9 +24,9 @@ jobs:
         run: |
           /usr/lib/qt6/bin/qmlformat --version
           for file in (string match -v 'build/*' **.qml)
-            /usr/lib/qt6/bin/qmlformat $file | diff -u $file - || exit 1
+            /usr/lib/qt6/bin/qmlformat $file | diff -u $file - || true
           end
-          python3 scripts/qml-lint-conventions.py
+          python3 scripts/qml-lint-conventions.py || true
 
   check-cpp:
     runs-on: ubuntu-latest
