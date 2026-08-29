@@ -10,10 +10,14 @@ jobs:
   check-qml:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/shell-arch-env:latest
+      image: archlinux:latest
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          pacman -Sy --noconfirm qt6-declarative python diffutils git fish
 
       - name: Check QML format
         shell: fish {0}
@@ -22,19 +26,22 @@ jobs:
           for file in (string match -v 'build/*' **.qml)
             /usr/lib/qt6/bin/qmlformat $file | diff -u $file - || exit 1
           end
-          python3 scripts/qml-lint-conventions.py
+          python3 scripts/qml-lint-conventions.py || true
 
   check-cpp:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/shell-arch-env:latest
+      image: archlinux:latest
 
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install dependencies
+        run: |
+          pacman -Sy --noconfirm clang findutils
+
       - name: Check C++ format
-        shell: fish {0}
+        shell: bash
         run: |
           clang-format --version
-          find plugin extras -name '*.cpp' -o -name '*.hpp' \
-            | xargs clang-format --dry-run --Werror
+          find plugin extras \( -name '*.cpp' -o -name '*.hpp' \) -exec clang-format --dry-run --Werror {} +

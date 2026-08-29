@@ -373,6 +373,34 @@ Searcher {
         selectedCategory = (cat && categories.includes(cat)) ? cat : "All";
     }
 
+    function getCategoryMemory(cat: string, mode: int): string {
+        if (!cat || cat === "All") {
+            if (mode === 0)
+                return root.lastStatic || (root.isVideo(root.actualCurrent) ? "" : root.actualCurrent);
+            if (mode === 1)
+                return root.lastAnimated || (root.isVideo(root.actualCurrent) ? root.actualCurrent : "");
+            return root.actualCurrent;
+        }
+        let entry = root.categoryMemory[cat];
+        if (!entry)
+            return "";
+        if (typeof entry === "string") {
+            if (mode === 0)
+                return root.isVideo(entry) ? "" : entry;
+            if (mode === 1)
+                return root.isVideo(entry) ? entry : "";
+            return entry;
+        }
+        if (typeof entry === "object" && entry !== null) {
+            if (mode === 0)
+                return entry.lastStatic || "";
+            if (mode === 1)
+                return entry.lastAnimated || "";
+            return entry.lastAny || entry.lastStatic || entry.lastAnimated || "";
+        }
+        return "";
+    }
+
     FileView {
         path: `${Paths.state}/wallpaper/ui_state.json`
         printErrors: false
@@ -384,8 +412,24 @@ Searcher {
                         root.lastStatic = parsed.lastStatic;
                     if (parsed.lastAnimated !== undefined)
                         root.lastAnimated = parsed.lastAnimated;
-                    if (parsed.categoryMemory !== undefined)
-                        root.categoryMemory = parsed.categoryMemory;
+                    if (parsed.categoryMemory !== undefined && parsed.categoryMemory && typeof parsed.categoryMemory === "object") {
+                        let rawMem = parsed.categoryMemory;
+                        let migratedMem = {};
+                        for (let c in rawMem) {
+                            let val = rawMem[c];
+                            if (typeof val === "string" && val) {
+                                let obj = { lastAny: val };
+                                if (root.isVideo(val))
+                                    obj.lastAnimated = val;
+                                else
+                                    obj.lastStatic = val;
+                                migratedMem[c] = obj;
+                            } else if (typeof val === "object" && val !== null) {
+                                migratedMem[c] = val;
+                            }
+                        }
+                        root.categoryMemory = migratedMem;
+                    }
                     if (parsed.badgeMode !== undefined)
                         root.badgeMode = parsed.badgeMode;
                     if (parsed.enableAnimation !== undefined)
@@ -529,14 +573,30 @@ Searcher {
         previewColourLock = true;
         pendingPreviewClear = false;
 
+        let isVid = isVideo(clean);
         let cat = getCategoryForPath(clean);
         if (cat !== "All") {
             let mem = Object.assign({}, categoryMemory);
-            mem[cat] = clean;
+            let catObj = (typeof mem[cat] === "object" && mem[cat] !== null) ? Object.assign({}, mem[cat]) : {};
+            if (typeof mem[cat] === "string" && mem[cat]) {
+                if (isVideo(mem[cat]))
+                    catObj.lastAnimated = mem[cat];
+                else
+                    catObj.lastStatic = mem[cat];
+                catObj.lastAny = mem[cat];
+            }
+
+            catObj.lastAny = clean;
+            if (isVid) {
+                catObj.lastAnimated = clean;
+            } else {
+                catObj.lastStatic = clean;
+            }
+            mem[cat] = catObj;
             categoryMemory = mem;
         }
 
-        if (isVideo(clean)) {
+        if (isVid) {
             lastAnimated = clean;
         } else {
             lastStatic = clean;
