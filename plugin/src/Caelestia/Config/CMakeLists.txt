@@ -1,5 +1,6 @@
 qml_module(caelestia-config
     URI Caelestia.Config
+    INCLUDE_PREFIX config
     SOURCES
         common.cpp
         rootnodes.cpp
@@ -9,6 +10,7 @@ qml_module(caelestia-config
         fontbuilder.cpp
         tokensattached.cpp
         anim.cpp
+        enums.hpp
         backgroundconfig.hpp
         barconfig.hpp
         borderconfig.hpp
