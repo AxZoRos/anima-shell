@@ -25,16 +25,20 @@ readonly CLI_TEMP_DIR="$(mktemp -d /tmp/anima_cli_XXXXXX)"
 readonly LOG_FILE="$(mktemp /tmp/anima_shell_XXXXXX.log)"
 
 readonly SYSTEM_QS_DIR="/etc/xdg/quickshell/caelestia"
-readonly USER_QS_DIR="$HOME/.config/quickshell/caelestia"
 readonly CACHE_DIR="$HOME/.cache/caelestia"
 readonly STATE_DIR="$HOME/.local/state/caelestia/wallpaper"
 
-INSTALL_TARGET_DIR="$SYSTEM_QS_DIR"
+readonly INSTALL_TARGET_DIR="$SYSTEM_QS_DIR"
 SELECTED_DECODER="vaapi"
 ENABLE_BADGES="true"
 TRANSITION_STYLE="shapes"
+CURRENT_ROLLBACK_TAG=""
 
 cleanup() {
+    local exit_code=$?
+    if [[ $exit_code -ne 0 && -n "${CURRENT_ROLLBACK_TAG:-}" ]]; then
+        perform_rollback "$CURRENT_ROLLBACK_TAG"
+    fi
     rm -rf "$CLI_TEMP_DIR" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -260,23 +264,10 @@ ensure_sudo() {
     sudo -v || { error "Administrator privileges are required to proceed."; exit 1; }
 }
 
-detect_active_shell_target() {
-    if [[ -f "$USER_QS_DIR/shell.qml" ]]; then
-        echo "$USER_QS_DIR"
-    elif [[ -f "$SYSTEM_QS_DIR/shell.qml" ]]; then
-        echo "$SYSTEM_QS_DIR"
-    else
-        echo "$SYSTEM_QS_DIR"
-    fi
-}
-
 detect_caelestia_shell() {
-    local dir
-    for dir in "$SYSTEM_QS_DIR" "$USER_QS_DIR"; do
-        if [[ -f "$dir/shell.qml" && -d "$dir/modules" && -d "$dir/services" ]]; then
-            return 0
-        fi
-    done
+    if [[ -f "$SYSTEM_QS_DIR/shell.qml" && -d "$SYSTEM_QS_DIR/modules" && -d "$SYSTEM_QS_DIR/services" ]]; then
+        return 0
+    fi
     return 1
 }
 
@@ -324,6 +315,117 @@ detect_qt6_qml_plugin_path() {
     else
         echo "/usr/lib/qt6/qml/Caelestia"
     fi
+}
+
+safe_wipe_target_dir() {
+    local target="$1"
+
+    if [[ -z "$target" ]]; then
+        error "safe_wipe_target_dir: Empty target path provided!"
+        return 1
+    fi
+
+    local real_target
+    real_target="$(realpath -m "$target" 2>/dev/null || echo "$target")"
+
+    # Refuse root and critical system directories
+    if [[ "$real_target" == "/" || "$real_target" == "/etc" || "$real_target" == "/usr" || "$real_target" == "/home" || "$real_target" == "/root" || "$real_target" == "/tmp" ]]; then
+        error "safe_wipe_target_dir: Refusing to wipe forbidden system path ($real_target)!"
+        return 1
+    fi
+
+    # Must end with 'caelestia'
+    if [[ "$(basename "$real_target")" != "caelestia" ]]; then
+        error "safe_wipe_target_dir: Target path does not end with 'caelestia' ($real_target)!"
+        return 1
+    fi
+
+    # Must be under /etc/xdg/quickshell or /tmp
+    if [[ "$real_target" != "/etc/xdg/quickshell/caelestia" && "$real_target" != /tmp/* ]]; then
+        error "safe_wipe_target_dir: Target path is outside authorized scope ($real_target)!"
+        return 1
+    fi
+
+    if [[ -d "$real_target" ]]; then
+        # Wipes all files and hidden files (.dotfiles) safely using find
+        if ! sudo find "$real_target" -mindepth 1 -maxdepth 1 -exec rm -rf {} +; then
+            error "safe_wipe_target_dir: Failed to cleanly empty target directory: $real_target"
+            return 1
+        fi
+    else
+        if ! sudo mkdir -p "$real_target"; then
+            error "safe_wipe_target_dir: Failed to create target directory: $real_target"
+            return 1
+        fi
+    fi
+}
+
+perform_rollback() {
+    local tag="$1"
+    if [[ -z "$tag" ]]; then
+        return 0
+    fi
+
+    echo ""
+    error "================================================================"
+    error "  CRITICAL: An error occurred during installation/deployment!"
+    error "  Initiating automatic rollback to snapshot ($tag)..."
+    error "================================================================"
+
+    local rollback_failed=false
+
+    # 1. Rollback Shell
+    if [[ -d "$BACKUP_DIR/shell_$tag" ]]; then
+        log_to_file "Rolling back Shell: $BACKUP_DIR/shell_$tag -> $INSTALL_TARGET_DIR"
+        if safe_wipe_target_dir "$INSTALL_TARGET_DIR" && sudo cp -r "$BACKUP_DIR/shell_$tag"/. "$INSTALL_TARGET_DIR"/; then
+            info "Shell rolled back to snapshot ($tag)."
+        else
+            error "Failed to cleanly roll back Shell."
+            rollback_failed=true
+        fi
+    fi
+
+    # 2. Rollback Plugin
+    if [[ -d "$BACKUP_DIR/plugin_$tag" ]]; then
+        local qml_plugin_dir
+        qml_plugin_dir=$(detect_qt6_qml_plugin_path)
+        if [[ -n "$qml_plugin_dir" ]]; then
+            log_to_file "Rolling back C++ Plugin: $BACKUP_DIR/plugin_$tag -> $qml_plugin_dir"
+            sudo rm -rf "$qml_plugin_dir"
+            if sudo cp -r "$BACKUP_DIR/plugin_$tag" "$qml_plugin_dir" && sudo chown -R root:root "$qml_plugin_dir"; then
+                info "C++ Plugin rolled back to snapshot ($tag)."
+            else
+                error "Failed to cleanly roll back C++ Plugin."
+                rollback_failed=true
+            fi
+        fi
+    fi
+
+    # 3. Rollback Python CLI
+    if [[ -d "$BACKUP_DIR/cli_$tag" ]]; then
+        local py_pkg
+        py_pkg=$(detect_caelestia_pkg_path)
+        if [[ -n "$py_pkg" ]]; then
+            log_to_file "Rolling back Python CLI: $BACKUP_DIR/cli_$tag -> $py_pkg"
+            sudo rm -rf "$py_pkg"
+            if sudo cp -r "$BACKUP_DIR/cli_$tag" "$py_pkg" && sudo chown -R root:root "$py_pkg"; then
+                info "Python CLI rolled back to snapshot ($tag)."
+            else
+                error "Failed to cleanly roll back Python CLI."
+                rollback_failed=true
+            fi
+        fi
+    fi
+
+    CURRENT_ROLLBACK_TAG=""
+    restart_shell || true
+
+    if [[ "$rollback_failed" == "false" ]]; then
+        warn "Automatic rollback completed successfully. System has been restored to snapshot ($tag)."
+    else
+        error "Automatic rollback encountered errors. Please check the log and inspect components in Backup Manager."
+    fi
+    info "Review the detailed installation log at: $LOG_FILE"
 }
 
 git_clone_with_retry() {
@@ -454,7 +556,20 @@ install_dependencies() {
             ;;
 
         *)
-            warn "Unsupported package manager. Please ensure cmake, ninja, qt6-multimedia, and ffmpeg are installed."
+            warn "Unsupported package manager detected."
+            local missing_tools=()
+            for tool in cmake ninja gcc ffmpeg python3; do
+                command -v "$tool" &>/dev/null || missing_tools+=("$tool")
+            done
+            if [[ ${#missing_tools[@]} -gt 0 ]]; then
+                error "Missing required build/runtime dependencies: ${missing_tools[*]}"
+                error "Please install the following dependencies using your distribution's package manager:"
+                error "  • Build tools: cmake, ninja, gcc / g++"
+                error "  • Qt6 & Multimedia: qt6-base, qt6-declarative, qt6-multimedia, qt6-shadertools"
+                error "  • GStreamer / Media: gst-plugins-good, gst-plugins-bad, gst-libav, ffmpeg"
+                error "  • Python modules: python3, python3-pip, pillow, materialyoucolor"
+                exit 1
+            fi
             ;;
     esac
 
@@ -510,29 +625,6 @@ prompt_user_configurations() {
         case "$step" in
             1)
                 echo ""
-                echo "Select destination directory for shell files:"
-                local dir_choice
-                dir_choice=$(choose \
-                    "/etc/xdg/quickshell/caelestia (default - system-wide)" \
-                    "~/.config/quickshell/caelestia (user config)" \
-                    "Cancel and return to main menu")
-
-                if [[ "$dir_choice" == "Cancel and return to main menu" || -z "$dir_choice" ]]; then
-                    warn "Configuration cancelled by user."
-                    return 1
-                fi
-
-                if [[ "$dir_choice" =~ ^/etc ]]; then
-                    INSTALL_TARGET_DIR="$SYSTEM_QS_DIR"
-                else
-                    INSTALL_TARGET_DIR="$USER_QS_DIR"
-                fi
-                info "Target Directory: $INSTALL_TARGET_DIR"
-                step=2
-                ;;
-
-            2)
-                echo ""
                 echo "Select preferred video hardware decoding backend:"
                 echo -e "\e[2m(Can also be changed anytime in Nexus Settings -> Wallpaper & Style)\e[0m"
                 local dec_choice
@@ -540,13 +632,9 @@ prompt_user_configurations() {
                     "VA-API (recommended - Intel / AMD / Mesa)" \
                     "NVDEC / CUDA (NVIDIA proprietary drivers)" \
                     "Software (CPU fallback - universal)" \
-                    "Back to previous step" \
                     "Cancel and return to main menu")
 
-                if [[ "$dec_choice" == "Back to previous step" ]]; then
-                    step=1
-                    continue
-                elif [[ "$dec_choice" == "Cancel and return to main menu" || -z "$dec_choice" ]]; then
+                if [[ "$dec_choice" == "Cancel and return to main menu" || -z "$dec_choice" ]]; then
                     warn "Configuration cancelled by user."
                     return 1
                 fi
@@ -559,10 +647,10 @@ prompt_user_configurations() {
                     SELECTED_DECODER="none"
                 fi
                 info "Video Decoder: $SELECTED_DECODER"
-                step=3
+                step=2
                 ;;
 
-            3)
+            2)
                 echo ""
                 echo "Display format, FPS, and bitrate badges on launcher cards?"
                 echo -e "\e[2m(Can also be toggled anytime in Nexus Settings or via launcher hover capsule)\e[0m"
@@ -574,7 +662,7 @@ prompt_user_configurations() {
                     "Cancel and return to main menu")
 
                 if [[ "$badge_choice" == "Back to previous step" ]]; then
-                    step=2
+                    step=1
                     continue
                 elif [[ "$badge_choice" == "Cancel and return to main menu" || -z "$badge_choice" ]]; then
                     warn "Configuration cancelled by user."
@@ -587,10 +675,10 @@ prompt_user_configurations() {
                     ENABLE_BADGES="false"
                 fi
                 info "Thumbnail Badges: $ENABLE_BADGES"
-                step=4
+                step=3
                 ;;
 
-            4)
+            3)
                 echo ""
                 echo "Select wallpaper transition effect:"
                 echo -e "\e[2m(Can also be changed anytime in Nexus Settings -> Wallpaper & Style)\e[0m"
@@ -602,7 +690,7 @@ prompt_user_configurations() {
                     "Cancel and return to main menu")
 
                 if [[ "$trans_choice" == "Back to previous step" ]]; then
-                    step=3
+                    step=2
                     continue
                 elif [[ "$trans_choice" == "Cancel and return to main menu" || -z "$trans_choice" ]]; then
                     warn "Configuration cancelled by user."
@@ -632,13 +720,7 @@ save_initial_backup() {
         sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/shell_original"
     fi
 
-    # 2. User Shell
-    if [[ ! -e "$INITIAL_BACKUP_DIR/user_shell_original" && -d "$USER_QS_DIR" ]]; then
-        log_to_file "Creating protected initial backup of $USER_QS_DIR -> $INITIAL_BACKUP_DIR/user_shell_original"
-        cp -r "$USER_QS_DIR" "$INITIAL_BACKUP_DIR/user_shell_original"
-    fi
-
-    # 3. Python CLI
+    # 2. Python CLI
     local site_pkg
     site_pkg=$(detect_caelestia_pkg_path)
     if [[ ! -e "$INITIAL_BACKUP_DIR/cli_original" && -n "$site_pkg" && -d "$site_pkg" ]]; then
@@ -647,7 +729,7 @@ save_initial_backup() {
         sudo chown -R "$(id -u):$(id -g)" "$INITIAL_BACKUP_DIR/cli_original"
     fi
 
-    # 4. Qt6 QML Plugin
+    # 3. Qt6 QML Plugin
     local qml_plugin_dir
     qml_plugin_dir=$(detect_qt6_qml_plugin_path)
     if [[ ! -e "$INITIAL_BACKUP_DIR/plugin_original" && -n "$qml_plugin_dir" && -d "$qml_plugin_dir" ]]; then
@@ -665,12 +747,8 @@ create_shell_backup() {
     if [[ -d "$target" && -n "$(ls -A "$target" 2>/dev/null)" ]]; then
         local archive="$BACKUP_DIR/shell_${tag}"
         log_step "Creating safety backup of $target -> $archive..."
-        if [[ "$target" =~ ^/etc ]]; then
-            sudo cp -r "$target" "$archive"
-            sudo chown -R "$(id -u):$(id -g)" "$archive"
-        else
-            cp -r "$target" "$archive"
-        fi
+        sudo cp -r "$target" "$archive"
+        sudo chown -R "$(id -u):$(id -g)" "$archive"
         if [[ ! -d "$archive" ]]; then
             error "Failed to create safety backup of $target. Aborting installation."
             exit 1
@@ -773,18 +851,10 @@ restore_full_snapshot() {
 
     # 1. Restore Shell
     if [[ "$has_shell" == "true" ]]; then
-        local dst
-        dst=$(detect_active_shell_target)
+        local dst="$SYSTEM_QS_DIR"
         log_step "Restoring Shell to $dst..."
-        if [[ "$dst" =~ ^/etc ]]; then
-            sudo rm -rf "${dst:?}"/* 2>/dev/null || true
-            sudo mkdir -p "$dst"
-            sudo cp -r "$BACKUP_DIR/shell_$chosen_tag"/. "$dst"/
-        else
-            rm -rf "${dst:?}"/* 2>/dev/null || true
-            mkdir -p "$dst"
-            cp -r "$BACKUP_DIR/shell_$chosen_tag"/. "$dst"/
-        fi
+        safe_wipe_target_dir "$dst"
+        sudo cp -r "$BACKUP_DIR/shell_$chosen_tag"/. "$dst"/
         info "Shell QML files restored to $dst"
     fi
 
@@ -870,31 +940,11 @@ restore_single_backup() {
             restart_shell
         fi
     else
-        echo "Restore target directory:"
-        local restore_target
-        restore_target=$(choose \
-            "/etc/xdg/quickshell/caelestia (default - system-wide)" \
-            "~/.config/quickshell/caelestia (user config)" \
-            "Cancel and return")
-
-        if [[ "$restore_target" == "Cancel and return" || -z "$restore_target" ]]; then
-            return 0
-        fi
-
-        local dst
-        if [[ "$restore_target" =~ ^/etc ]]; then
-            dst="$SYSTEM_QS_DIR"
-            log_step "Restoring $selected to $dst (requires sudo)..."
-            sudo rm -rf "$dst"
-            sudo mkdir -p "$(dirname "$dst")"
-            sudo cp -r "$selected_path" "$dst"
-        else
-            dst="$USER_QS_DIR"
-            log_step "Restoring $selected to $dst..."
-            rm -rf "$dst"
-            mkdir -p "$(dirname "$dst")"
-            cp -r "$selected_path" "$dst"
-        fi
+        local dst="$SYSTEM_QS_DIR"
+        ensure_sudo
+        log_step "Restoring $selected to $dst (requires sudo)..."
+        safe_wipe_target_dir "$dst"
+        sudo cp -r "$selected_path"/. "$dst"/
         info "Successfully restored $selected to $dst!"
         restart_shell
     fi
@@ -967,9 +1017,8 @@ revert_to_upstream_caelestia() {
 
     ensure_sudo
 
-    local dst
-    dst=$(detect_active_shell_target)
-    info "Target Directory detected: $dst"
+    local dst="$INSTALL_TARGET_DIR"
+    info "Target Directory: $dst"
 
     # Create safety backup before performing reset
     local snapshot_tag
@@ -982,37 +1031,45 @@ revert_to_upstream_caelestia() {
     local stock_cli_tmp
     stock_cli_tmp=$(mktemp -d /tmp/stock_cli_XXXXXX)
 
-    # Phase 1: Download all sources first
-    log_step "Fetching official upstream Caelestia Shell from GitHub..."
-    git clone --depth 1 --tags "https://github.com/caelestia-dots/shell.git" "$stock_shell_tmp" &>>"$LOG_FILE" &
-    spinner $! "Cloning upstream shell"
+    # Phase 1: Download latest stable release archives
+    log_step "Detecting latest stable upstream releases..."
+    local shell_ver
+    shell_ver=$(curl -sIL "https://github.com/caelestia-dots/shell/releases/latest" 2>/dev/null | grep -i "^location:" | sed -E 's/.*tag\/v?//' | tr -d '\r\n' || echo "")
+    [[ -z "$shell_ver" ]] && shell_ver="2.4.0"
 
-    log_step "Fetching official upstream Caelestia CLI from GitHub..."
-    git clone --depth 1 --tags "https://github.com/caelestia-dots/cli.git" "$stock_cli_tmp" &>>"$LOG_FILE" &
-    spinner $! "Cloning upstream CLI"
+    local cli_ver
+    cli_ver=$(curl -sIL "https://github.com/caelestia-dots/cli/releases/latest" 2>/dev/null | grep -i "^location:" | sed -E 's/.*tag\///' | tr -d '\r\n' || echo "")
+    [[ -z "$cli_ver" ]] && cli_ver="v1.1.2"
 
-    local git_rev
-    git_rev=$(cd "$stock_shell_tmp" && git rev-parse HEAD 2>/dev/null || echo "main")
-    local git_ver
-    git_ver=$(cd "$stock_shell_tmp" && git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "2.3.0")
-    [[ -z "$git_ver" || "$git_ver" =~ [^0-9.] ]] && git_ver="2.3.0"
+    log_step "Fetching official Caelestia Shell stable archive (v$shell_ver)..."
+    (
+        curl -sL "https://github.com/caelestia-dots/shell/releases/latest/download/caelestia-shell-latest.tar.gz" | tar -xz -C "$stock_shell_tmp" --strip-components=1
+    ) &>>"$LOG_FILE" &
+    spinner $! "Downloading and extracting upstream shell (v$shell_ver)"
+
+    log_step "Fetching official Caelestia CLI stable archive ($cli_ver)..."
+    (
+        curl -sL "https://github.com/caelestia-dots/cli/archive/refs/tags/${cli_ver}.tar.gz" | tar -xz -C "$stock_cli_tmp" --strip-components=1
+    ) &>>"$LOG_FILE" &
+    spinner $! "Downloading and extracting upstream CLI ($cli_ver)"
 
     # Phase 2: Build C++ plugins
-    log_step "Configuring upstream Caelestia Shell..."
+    log_step "Configuring upstream Caelestia Shell (v$shell_ver)..."
     (
         cmake -B "$stock_shell_tmp/build" -S "$stock_shell_tmp" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DCMAKE_INSTALL_SYSCONFDIR=/etc \
             -DCMAKE_INSTALL_LIBDIR=lib \
-            -DVERSION="$git_ver" \
-            -DGIT_REVISION="$git_rev"
+            -DVERSION="$shell_ver" \
+            -DGIT_REVISION="$shell_ver"
     ) &>>"$LOG_FILE" &
     spinner $! "CMake configuration"
 
     run_compile_step "Compiling upstream plugins" cmake --build "$stock_shell_tmp/build"
 
     # Phase 3: Deploy (only after all downloads and builds succeed)
+    CURRENT_ROLLBACK_TAG="$snapshot_tag"
     local install_upstream_plugins
     install_upstream_plugins() {
         sudo cmake --install "$stock_shell_tmp/build"
@@ -1020,15 +1077,8 @@ revert_to_upstream_caelestia() {
     run_step "Upstream C++ plugins installed" install_upstream_plugins
 
     log_step "Deploying upstream shell files to $dst..."
-    if [[ "$dst" =~ ^/etc ]]; then
-        sudo rm -rf "$dst"
-        sudo mkdir -p "$dst"
-        sudo cp -r "$stock_shell_tmp"/assets "$stock_shell_tmp"/components "$stock_shell_tmp"/modules "$stock_shell_tmp"/services "$stock_shell_tmp"/utils "$stock_shell_tmp"/shell.qml "$dst"/
-    else
-        rm -rf "$dst"
-        mkdir -p "$dst"
-        cp -r "$stock_shell_tmp"/assets "$stock_shell_tmp"/components "$stock_shell_tmp"/modules "$stock_shell_tmp"/services "$stock_shell_tmp"/utils "$stock_shell_tmp"/shell.qml "$dst"/
-    fi
+    safe_wipe_target_dir "$dst"
+    sudo cp -r "$stock_shell_tmp"/assets "$stock_shell_tmp"/components "$stock_shell_tmp"/modules "$stock_shell_tmp"/services "$stock_shell_tmp"/utils "$stock_shell_tmp"/shell.qml "$dst"/
     info "Upstream shell deployed to $dst"
 
     local site_pkg
@@ -1040,7 +1090,7 @@ revert_to_upstream_caelestia() {
             sudo cp -r "$stock_cli_tmp/src/caelestia" "$site_pkg"
             sudo chown -R root:root "$site_pkg"
         ) &>>"$LOG_FILE" &
-        spinner $! "Restoring upstream CLI package"
+        spinner $! "Restoring upstream CLI package ($cli_ver)"
     else
         (
             cd "$stock_cli_tmp"
@@ -1048,7 +1098,7 @@ revert_to_upstream_caelestia() {
             python3 -m pip install --break-system-packages --user --no-deps . 2>/dev/null || \
             python3 -m pip install --user .
         ) &>>"$LOG_FILE" &
-        spinner $! "Installing upstream CLI"
+        spinner $! "Installing upstream CLI ($cli_ver)"
     fi
 
     log_step "Cleaning cache..."
@@ -1060,6 +1110,7 @@ revert_to_upstream_caelestia() {
     rm -rf "$stock_shell_tmp" "$stock_cli_tmp" 2>/dev/null || true
 
     restart_shell
+    CURRENT_ROLLBACK_TAG=""
 
     echo ""
     info "================================================================"
@@ -1072,18 +1123,87 @@ revert_to_upstream_caelestia() {
     press_enter
 }
 
+restore_pre_anima_backup() {
+    if [[ ! -d "$INITIAL_BACKUP_DIR" ]] || [[ -z "$(ls -A "$INITIAL_BACKUP_DIR" 2>/dev/null)" ]]; then
+        warn "No protected Pre-Anima factory backup found in $INITIAL_BACKUP_DIR."
+        press_enter
+        return 0
+    fi
+
+    echo ""
+    warn "Restore Protected Factory Backup (Pre-Anima Snapshot)"
+    echo "This will restore the original Shell, CLI, and C++ Plugin from before Anima was installed."
+    echo ""
+
+    if ! confirm "Are you sure you want to restore the Pre-Anima factory backup?"; then
+        return 0
+    fi
+
+    ensure_sudo
+    log_section "Restoring Pre-Anima Factory Backup"
+
+    # 1. Restore Shell
+    if [[ -d "$INITIAL_BACKUP_DIR/shell_original" ]]; then
+        local dst="$SYSTEM_QS_DIR"
+        log_step "Restoring original Shell to $dst..."
+        safe_wipe_target_dir "$dst"
+        sudo cp -r "$INITIAL_BACKUP_DIR/shell_original"/. "$dst"/
+        info "Original Shell restored to $dst"
+    fi
+
+    # 2. Restore CLI
+    if [[ -d "$INITIAL_BACKUP_DIR/cli_original" ]]; then
+        local py_pkg
+        py_pkg=$(detect_caelestia_pkg_path)
+        if [[ -n "$py_pkg" ]]; then
+            log_step "Restoring original Python CLI to $py_pkg..."
+            sudo rm -rf "$py_pkg"
+            sudo cp -r "$INITIAL_BACKUP_DIR/cli_original" "$py_pkg"
+            sudo chown -R root:root "$py_pkg"
+            info "Original Python CLI package restored."
+        fi
+    fi
+
+    # 3. Restore Qt6 Plugin
+    if [[ -d "$INITIAL_BACKUP_DIR/plugin_original" ]]; then
+        local qml_plugin_dir
+        qml_plugin_dir=$(detect_qt6_qml_plugin_path)
+        if [[ -n "$qml_plugin_dir" ]]; then
+            log_step "Restoring original Qt6 C++ plugin to $qml_plugin_dir..."
+            sudo rm -rf "$qml_plugin_dir"
+            sudo cp -r "$INITIAL_BACKUP_DIR/plugin_original" "$qml_plugin_dir"
+            sudo chown -R root:root "$qml_plugin_dir"
+            info "Original Qt6 C++ plugin restored."
+        fi
+    fi
+
+    restart_shell
+
+    echo ""
+    info "================================================================"
+    info "  Pre-Anima factory backup restored successfully!"
+    info "================================================================"
+    press_enter
+}
+
 manage_backups() {
     while true; do
         print_header
         log_step "Backup Manager & Restore"
         echo ""
 
+        if [[ -d "$INITIAL_BACKUP_DIR" && -n "$(ls -A "$INITIAL_BACKUP_DIR" 2>/dev/null)" ]]; then
+            local pre_size
+            pre_size="$(du -sh "$INITIAL_BACKUP_DIR" 2>/dev/null | awk '{print $1}')"
+            echo -e "\e[1;32m   [Protected Factory Backup]\e[0m $INITIAL_BACKUP_DIR ($pre_size)"
+        fi
+
         local backup_count=0
         if [[ -d "$BACKUP_DIR" ]]; then
             backup_count=$(find "$BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
         fi
 
-        echo "Stored backups in $BACKUP_DIR: $backup_count"
+        echo "Stored regular backups in $BACKUP_DIR: $backup_count"
         if [[ $backup_count -gt 0 ]]; then
             echo ""
             while IFS= read -r line; do
@@ -1099,27 +1219,27 @@ manage_backups() {
         local choice
         choice=$(choose \
             "[1] Restore Full Snapshot by Date (Shell + CLI + Plugin)" \
-            "[2] Restore Individual Component (Single Backup)" \
-            "[3] Delete a Specific Backup" \
-            "[4] Delete ALL Backups (Purge)" \
-            "[5] Reset / Revert to Stock Upstream Caelestia" \
+            "[2] Restore Protected Pre-Anima Factory Backup" \
+            "[3] Restore Individual Component (Single Backup)" \
+            "[4] Delete a Specific Backup" \
+            "[5] Delete ALL Regular Backups (Purge)" \
             "[0] Return to Main Menu")
 
         case "$choice" in
             "[1] Restore Full Snapshot by Date (Shell + CLI + Plugin)")
                 restore_full_snapshot
                 ;;
-            "[2] Restore Individual Component (Single Backup)")
+            "[2] Restore Protected Pre-Anima Factory Backup")
+                restore_pre_anima_backup
+                ;;
+            "[3] Restore Individual Component (Single Backup)")
                 restore_single_backup
                 ;;
-            "[3] Delete a Specific Backup")
+            "[4] Delete a Specific Backup")
                 delete_single_backup
                 ;;
-            "[4] Delete ALL Backups (Purge)")
+            "[5] Delete ALL Regular Backups (Purge)")
                 delete_all_backups
-                ;;
-            "[5] Reset / Revert to Stock Upstream Caelestia")
-                revert_to_upstream_caelestia
                 ;;
             "[0] Return to Main Menu"|*)
                 return 0
@@ -1147,10 +1267,7 @@ build_and_deploy_shell() {
 
     log_to_file "Version Tag: $git_ver (Commit: $git_rev)"
 
-    local enable_modules="extras;plugin;m3shapes"
-    if [[ "$INSTALL_TARGET_DIR" =~ ^/etc ]]; then
-        enable_modules="extras;plugin;shell;m3shapes"
-    fi
+    local enable_modules="extras;plugin;shell"
 
     (
         cmake -B "$build_dir" -S "$SHELL_SRC" -G Ninja \
@@ -1173,17 +1290,9 @@ build_and_deploy_shell() {
     run_step "C++ plugins installed" install_shell_plugin
 
     log_step "Deploying shell files to $INSTALL_TARGET_DIR..."
-    if [[ "$INSTALL_TARGET_DIR" =~ ^/etc ]]; then
-        sudo mkdir -p "$INSTALL_TARGET_DIR"
-        sudo rm -rf "${INSTALL_TARGET_DIR:?}"/* 2>/dev/null || true
-        sudo cp -r "$SHELL_SRC"/assets "$SHELL_SRC"/components "$SHELL_SRC"/modules "$SHELL_SRC"/services "$SHELL_SRC"/utils "$SHELL_SRC"/shell.qml "$INSTALL_TARGET_DIR"/
-        sudo chmod +x "$INSTALL_TARGET_DIR/assets/wrap_term_launch.sh" 2>/dev/null || true
-    else
-        mkdir -p "$INSTALL_TARGET_DIR"
-        rm -rf "${INSTALL_TARGET_DIR:?}"/* 2>/dev/null || true
-        cp -r "$SHELL_SRC"/assets "$SHELL_SRC"/components "$SHELL_SRC"/modules "$SHELL_SRC"/services "$SHELL_SRC"/utils "$SHELL_SRC"/shell.qml "$INSTALL_TARGET_DIR"/
-        chmod +x "$INSTALL_TARGET_DIR/assets/wrap_term_launch.sh" 2>/dev/null || true
-    fi
+    safe_wipe_target_dir "$INSTALL_TARGET_DIR"
+    sudo cp -r "$SHELL_SRC"/assets "$SHELL_SRC"/components "$SHELL_SRC"/modules "$SHELL_SRC"/services "$SHELL_SRC"/utils "$SHELL_SRC"/shell.qml "$INSTALL_TARGET_DIR"/
+    [[ -f "$INSTALL_TARGET_DIR/assets/wrap_term_launch.sh" ]] && sudo chmod +x "$INSTALL_TARGET_DIR/assets/wrap_term_launch.sh"
 
     mkdir -p "$CACHE_DIR/videothumbs" "$CACHE_DIR/wallpapers"
     log_to_file "Deployed QML components to: $INSTALL_TARGET_DIR"
@@ -1277,32 +1386,27 @@ EOF
 }
 
 restart_shell() {
-    log_step "Restarting Caelestia Shell service..."
+    log_step "Restarting Caelestia Shell..."
     (
         caelestia shell -k 2>/dev/null || true
-        pkill -x quickshell 2>/dev/null || true
-        pkill -f "qs.*caelestia" 2>/dev/null || true
-        pkill -f "quickshell.*caelestia" 2>/dev/null || true
-        pkill -f "caelestia.*shell" 2>/dev/null || true
-        sleep 1.2
-    ) &>>"$LOG_FILE" &
-    spinner $! "Stopping existing Caelestia Shell"
-
-    (
-        caelestia shell -d &>>"$LOG_FILE"
+        sleep 1
+        caelestia shell -d >/dev/null 2>&1 || true
         sleep 1.5
 
-        if pgrep -f "qs.*caelestia" >/dev/null 2>&1 || \
-           pgrep -f "quickshell.*caelestia" >/dev/null 2>&1 || \
-           pgrep -x quickshell >/dev/null 2>&1 || \
-           pgrep -f "caelestia.*shell" >/dev/null 2>&1; then
-            exit 0
-        else
-            echo "ERROR: Caelestia shell crashed on startup. Check log for details: $LOG_FILE" >> "$LOG_FILE"
-            exit 1
+        if [[ -n "${WAYLAND_DISPLAY:-}" || -n "${DISPLAY:-}" ]]; then
+            if pgrep -f "quickshell.*caelestia" >/dev/null 2>&1 || \
+               pgrep -f "qs.*caelestia" >/dev/null 2>&1 || \
+               pgrep -x "quickshell" >/dev/null 2>&1 || \
+               pgrep -x "qs" >/dev/null 2>&1; then
+                exit 0
+            else
+                echo "ERROR: Caelestia shell process failed to start after restart." >> "$LOG_FILE"
+                exit 1
+            fi
         fi
-    ) &
-    spinner $! "Starting Anima Shell in background"
+        exit 0
+    ) &>>"$LOG_FILE" &
+    spinner $! "Restarting Caelestia Shell"
 }
 
 full_installation() {
@@ -1326,11 +1430,13 @@ full_installation() {
     snapshot_tag="$(date +%Y%m%d_%H%M%S)"
     create_shell_backup "$INSTALL_TARGET_DIR" "$snapshot_tag"
     create_cli_backup "$snapshot_tag"
+    CURRENT_ROLLBACK_TAG="$snapshot_tag"
 
     build_and_deploy_shell
     install_python_cli
     apply_settings "true"
     restart_shell
+    CURRENT_ROLLBACK_TAG=""
 
     echo ""
     info "================================================================"
@@ -1349,9 +1455,7 @@ update_anima_shell() {
     log_step "Updating Anima Shell..."
     ensure_sudo
     echo ""
-
-    INSTALL_TARGET_DIR=$(detect_active_shell_target)
-    info "Detected active installation directory: $INSTALL_TARGET_DIR"
+    info "Target Directory: $INSTALL_TARGET_DIR"
 
     install_dependencies
     clone_or_update_repos
@@ -1361,11 +1465,13 @@ update_anima_shell() {
     snapshot_tag="$(date +%Y%m%d_%H%M%S)"
     create_shell_backup "$INSTALL_TARGET_DIR" "$snapshot_tag"
     create_cli_backup "$snapshot_tag"
+    CURRENT_ROLLBACK_TAG="$snapshot_tag"
 
     build_and_deploy_shell
     install_python_cli
     apply_settings "false"
     restart_shell
+    CURRENT_ROLLBACK_TAG=""
 
     echo ""
     info "================================================================"
@@ -1424,9 +1530,7 @@ repair_installation() {
     fi
 
     ensure_sudo
-
-    INSTALL_TARGET_DIR=$(detect_active_shell_target)
-    info "Detected active installation directory: $INSTALL_TARGET_DIR"
+    info "Target Directory: $INSTALL_TARGET_DIR"
 
     clone_or_update_repos
 
@@ -1435,24 +1539,18 @@ repair_installation() {
     snapshot_tag="$(date +%Y%m%d_%H%M%S)"
     create_shell_backup "$INSTALL_TARGET_DIR" "$snapshot_tag"
     create_cli_backup "$snapshot_tag"
+    CURRENT_ROLLBACK_TAG="$snapshot_tag"
 
     log_step "Re-applying Anima QML files to $INSTALL_TARGET_DIR..."
-    if [[ "$INSTALL_TARGET_DIR" =~ ^/etc ]]; then
-        sudo mkdir -p "$INSTALL_TARGET_DIR"
-        sudo rm -rf "${INSTALL_TARGET_DIR:?}"/* 2>/dev/null || true
-        sudo cp -r "$SHELL_SRC"/assets "$SHELL_SRC"/components "$SHELL_SRC"/modules "$SHELL_SRC"/services "$SHELL_SRC"/utils "$SHELL_SRC"/shell.qml "$INSTALL_TARGET_DIR"/
-        sudo chmod +x "$INSTALL_TARGET_DIR/assets/wrap_term_launch.sh" 2>/dev/null || true
-    else
-        mkdir -p "$INSTALL_TARGET_DIR"
-        rm -rf "${INSTALL_TARGET_DIR:?}"/* 2>/dev/null || true
-        cp -r "$SHELL_SRC"/assets "$SHELL_SRC"/components "$SHELL_SRC"/modules "$SHELL_SRC"/services "$SHELL_SRC"/utils "$SHELL_SRC"/shell.qml "$INSTALL_TARGET_DIR"/
-        chmod +x "$INSTALL_TARGET_DIR/assets/wrap_term_launch.sh" 2>/dev/null || true
-    fi
+    safe_wipe_target_dir "$INSTALL_TARGET_DIR"
+    sudo cp -r "$SHELL_SRC"/assets "$SHELL_SRC"/components "$SHELL_SRC"/modules "$SHELL_SRC"/services "$SHELL_SRC"/utils "$SHELL_SRC"/shell.qml "$INSTALL_TARGET_DIR"/
+    [[ -f "$INSTALL_TARGET_DIR/assets/wrap_term_launch.sh" ]] && sudo chmod +x "$INSTALL_TARGET_DIR/assets/wrap_term_launch.sh"
     info "QML files re-applied."
 
     install_python_cli
     apply_settings "false"
     restart_shell
+    CURRENT_ROLLBACK_TAG=""
 
     echo ""
     info "================================================================"
