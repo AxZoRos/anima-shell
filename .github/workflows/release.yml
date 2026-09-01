@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag (leave empty to auto-sync with upstream Caelestia)"
+        required: false
+        default: ""
 
 jobs:
   build-and-release:
@@ -13,7 +19,33 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup tag version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.version }}"
+            if [ -z "$TAG" ]; then
+              TAG=$(curl -sL "https://api.github.com/repos/caelestia-dots/shell/releases/latest" | grep -Po '"tag_name":\s*"\K[^"]+' || echo "")
+            fi
+            if [ -z "$TAG" ]; then
+              TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            fi
+            if [ -z "$TAG" ]; then
+              TAG="v2.4.0"
+            fi
+            [[ "$TAG" != v* ]] && TAG="v$TAG"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG" --force
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Create packages
         run: |
@@ -26,18 +58,20 @@ jobs:
             --exclude='flake.nix' \
             . release
           echo "$GITHUB_SHA" > release/REVISION
-          tar -czf anima-shell-${{ github.ref_name }}.tar.gz release
-          cp anima-shell-${{ github.ref_name }}.tar.gz anima-shell-latest.tar.gz
+          tar -czf anima-shell-${{ steps.ver.outputs.tag }}.tar.gz release
+          cp anima-shell-${{ steps.ver.outputs.tag }}.tar.gz anima-shell-latest.tar.gz
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.tag }}
           files: |
-            anima-shell-${{ github.ref_name }}.tar.gz
+            anima-shell-${{ steps.ver.outputs.tag }}.tar.gz
             anima-shell-latest.tar.gz
           generate_release_notes: true
-      
+
       - name: Update stable branch
         run: |
           git branch -f stable "$GITHUB_SHA"
           git push origin stable --force
+
