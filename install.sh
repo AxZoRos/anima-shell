@@ -219,7 +219,7 @@ get_version_tag() {
         ver=$(cd "$SHELL_SRC" && git describe --tags --abbrev=0 2>/dev/null || echo "")
     fi
     if [[ -z "$ver" ]]; then
-        ver="v2.3.0"
+        ver="v2.4.0"
     fi
     [[ "$ver" != v* ]] && ver="v$ver"
     echo "$ver"
@@ -457,10 +457,18 @@ install_gum_if_needed() {
         return 0
     fi
 
-    echo -e "\e[33m[INFO] 'gum' is not installed. It provides an enhanced interactive UI.\e[0m"
-    if confirm "Would you like to install gum now?" true; then
-        local mgr
-        mgr=$(detect_pkg_mgr)
+    local mgr
+    mgr=$(detect_pkg_mgr)
+    local default_gum=true
+
+    echo -e "\e[33m[INFO] Optional: 'gum' is not installed.\e[0m"
+    echo -e "\e[33m       The installer works perfectly with standard built-in CLI prompts.\e[0m"
+    if [[ "$mgr" == "apt" ]]; then
+        default_gum=false
+        echo -e "\e[33m       (Note: Installing gum on Debian/Ubuntu requires adding the official Charm apt repository).\e[0m"
+    fi
+
+    if confirm "Would you like to install gum for enhanced interactive UI?" "$default_gum"; then
         local aur
         aur=$(detect_aur_helper)
 
@@ -1262,8 +1270,8 @@ build_and_deploy_shell() {
     git_rev=$(cd "$SHELL_SRC" && git rev-parse HEAD 2>/dev/null || echo "main")
 
     local git_ver
-    git_ver=$(cd "$SHELL_SRC" && git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "2.3.0")
-    [[ -z "$git_ver" || "$git_ver" =~ [^0-9.] ]] && git_ver="2.3.0"
+    git_ver=$(cd "$SHELL_SRC" && git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "2.4.0")
+    [[ -z "$git_ver" || "$git_ver" =~ [^0-9.] ]] && git_ver="2.4.0"
 
     log_to_file "Version Tag: $git_ver (Commit: $git_rev)"
 
