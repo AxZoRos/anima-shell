@@ -1,28 +1,61 @@
-<h1 align="center">✨ Anima Shell ✨</h1>
+<h1 align="center">Anima Shell</h1>
+
+<!-- ASCII ART PLACEHOLDER -->
+<!--
+[ Insert your custom ASCII art here ]
+-->
 
 <p align="center">
-  <b>A fluid, morphing shell for your Linux desktop with native video wallpapers, shape morph transitions, and directory categorization.</b><br>
-  <i>A fork of <a href="https://github.com/caelestia-dots/shell">Caelestia Shell</a></i>
+  <b>A desktop shell fork for Linux with native video wallpapers, Material Shape transitions, and directory categorization.</b><br>
+  <i>Based on <a href="https://github.com/caelestia-dots/shell">Caelestia Shell</a></i>
 </p>
 
 <div align="center">
 
+[![GitHub Release](https://img.shields.io/github/v/release/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=9ccbfb)](https://github.com/AxZoRos/anima-shell/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=b9c8da)](https://github.com/AxZoRos/anima-shell/stargazers)
+[![License](https://img.shields.io/github/license/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=d3bfe6)](LICENSE)
+
 </div>
 
 ---
 
-<!-- DEMO VIDEO / SCREENSHOT PLACEHOLDER -->
-<!-- Replace this section with your video or GIF demo -->
+<!-- Video demonstration placeholder -->
 <div align="center">
   <!-- <video src="https://github.com/user-attachments/assets/YOUR_VIDEO_ID" controls width="100%"></video> -->
-  <p><i>🎬 Demo video coming soon</i></p>
+  <p><i>Demo video coming soon</i></p>
 </div>
 
 ---
 
-## 📦 Quick Installation
+## Overview
 
-You can install Anima Shell using the built-in interactive deployment script:
+Anima Shell is a modified distribution of Caelestia Shell designed to extend the wallpaper system with native video playback, subfolder categorization, and adaptive resource management:
+
+* **Video Wallpapers**: Hardware-accelerated video rendering via QtMultimedia with configurable decoder backends (VA-API, NVDEC, CPU).
+* **Directory Categorization**: Recursive folder parsing that treats subdirectories in `~/Pictures/Wallpapers` as distinct categories with category memory.
+* **Playback Management**: Automatic pausing of wallpaper playback during fullscreen windows, battery power, or lockscreen states.
+* **Material Shape Transitions**: Geometric shape morphing and cross-fading when navigating between backgrounds.
+* **Metadata Badges**: Direct display of codec, framerate, and bitrate information on launcher wallpaper items.
+* **Deployment & Safety**: Interactive installer with multi-distro dependency resolution, automated transactional rollback, and stock Caelestia restore capabilities.
+
+---
+
+## Installation
+
+Anima Shell runs on top of the Caelestia ecosystem and Quickshell. Ensure your system meets the base Caelestia requirements before deploying.
+
+### Option A: One-Line Automatic Install (Recommended)
+
+Run the remote installer directly in your terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AxZoRos/anima-shell/main/install.sh | bash
+```
+
+### Option B: Local Git Clone Install
+
+Clone the repository locally and run the installer:
 
 ```bash
 git clone https://github.com/AxZoRos/anima-shell.git
@@ -30,115 +63,91 @@ cd anima-shell
 ./install.sh
 ```
 
-The installer will guide you through dependency verification, C++ plugin compilation, video decoder selection, and automatic backup creation of your existing configuration.
+The installer verifies system dependencies, compiles the C++ plugin, deploys QML modules to `/etc/xdg/quickshell/caelestia`, and patches the Python CLI for hardware video decoder injection.
 
 ---
 
-## ⌨️ Launcher Keybindings & Shortcuts
+## Updating
 
-When browsing wallpapers in the launcher, you can use the following shortcuts:
+You can update Anima Shell at any time using either method:
 
-| Shortcut | Action |
+### Option A: Remote Update
+
+Run the installer script and select **`[2] Update Anima Shell`**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AxZoRos/anima-shell/main/install.sh | bash
+```
+
+### Option B: Local Repository Update
+
+Pull the latest commits and launch the installer:
+
+```bash
+cd ~/anima-shell   # or your clone path
+git pull
+./install.sh
+```
+
+Select **`[2] Update Anima Shell`** in the interactive menu. The installer will safely recompile the C++ plugin, deploy updated QML modules, and restart the shell with zero configuration loss.
+
+---
+
+## Launcher Shortcuts
+
+The following keybindings are available when the wallpaper launcher is open:
+
+| Keybinding | Action |
 | :--- | :--- |
-| `Ctrl + B` | Toggle / cycle info badges mode (Format, FPS, Bitrate) |
-| `Ctrl + R` | Pick a random wallpaper from the current list |
+| `Ctrl + B` | Cycle / toggle metadata badges mode |
+| `Ctrl + R` | Select a random wallpaper from the current category |
 | `Ctrl + Tab` | Cycle filter mode forward (`All` → `Static` → `Animated`) |
 | `Ctrl + Shift + Tab` | Cycle filter mode backward |
-| `Alt + Left` / `Alt + H` | Switch to the previous category folder |
-| `Alt + Right` / `Alt + L` | Switch to the next category folder |
-| `Alt + 1` .. `Alt + 9` | Jump directly to the N-th category folder |
-| `Up` / `Down` (or Vim `Ctrl+J` / `Ctrl+K`) | Navigate wallpaper cards |
-| `Enter` | Apply selected wallpaper and close launcher |
-| `Escape` | Close launcher without changes |
+| `Alt + Left` / `Alt + H` | Switch to the previous category |
+| `Alt + Right` / `Alt + L` | Switch to the next category |
+| `Alt + 1` .. `Alt + 9` | Jump to the N-th category |
+| `Up` / `Down` (or `Ctrl+J` / `Ctrl+K`) | Navigate wallpaper items |
 
 ---
 
-## 🎮 Interactive Badges, Hover Capsule & Hidden Controls
+## Modified & Added Files
 
-We love micro-interactions, so here are a few hidden gems packed into the launcher:
-
-### 🃏 The Expanding "Random" Capsule
-> *Don't forget to hover over the "Random" button — it expands to reveal 2 hidden buttons.*
-
-* **Simply hover your mouse** over the `shuffle` (Random) button: the capsule will smoothly slide open to reveal:
-  * 👁️ **Badge Toggle Button** (`badge` / `label_off` icon) — Instantly show or hide all info badges across all wallpaper cards in one click.
-  * 🔄 **Full Rescan Button** (`refresh` icon) — Forces a complete re-scan of video metadata and regenerates all thumbnails from scratch.
-
-### 🏷️ Interactive Thumbnail Badges
-Every wallpaper card displays interactive badges (Format, FPS, Bitrate):
-* **Left Click on any badge**: Cycles its position **clockwise** through the four corners of the card.
-* **Right Click on any badge**: Hides that specific badge.
-* *(Accidentally hid a badge? Just hover over the Random button and click the badge toggle to bring them all back).*
-
-### ⚡ Background Scanning Indicator (`burst_mode`)
-> [!NOTE]
-> When you add new video wallpapers or hit **Full Rescan**, a status pill with a **`burst_mode`** icon and a countdown number will appear next to the Random capsule.
->
-> If you notice a temporary spike in CPU usage during this time, **don't worry**. It's just `ffmpeg` and `ffprobe` extracting crisp video thumbnails and probing stream metadata. We run them with low thread priorities (`nice`/`ionice`) so your desktop stays buttery smooth. Once the countdown hits 0, CPU usage drops right back to idle.
-
----
-
-## ⚙️ Nexus Settings & Hardware Decoders
-
-Inside the **Nexus → Wallpaper & Style** page, you have full control over the engine:
-
-* **Hardware Video Decoder**:
-  * **VA-API** *(Recommended)* — Best choice for 90% of Linux setups (Intel integrated graphics, AMD Radeon, and open-source Mesa drivers). Minimal CPU overhead.
-  * **CUDA / NVDEC** — For systems with proprietary NVIDIA drivers.
-  * **Software (CPU)** — Safe universal fallback for VMs or systems without hardware video decoding.
-* **Auto-Pause Rules**: Configure whether video wallpapers pause when games or fullscreen apps are open.
-* **Shape Morph Transitions**: You can switch between Material Shape morphing and classic cross-fade *(...though why would you ever want to disable that awesome morph animation, right?)*.
-
----
-
-## 📁 Modified & Added Files
-
-Here is the complete list of files touched or created in this shell fork:
+Overview of code modifications relative to upstream Caelestia Shell:
 
 | File | Type | Description |
 | :--- | :--- | :--- |
-| `install.sh` | `NEW` | Interactive multi-distro deployment script and backup manager. |
-| `modules/background/VideoWallpaper.qml` | `NEW` | High-performance QtMultimedia video wallpaper component with first-frame freeze. |
-| `modules/background/Wallpaper.qml` | `MODIFIED` | Double-buffered layer switching between static images and videos with Material Shape masks. |
-| `modules/launcher/Content.qml` | `MODIFIED` | Launcher category bar, expanding action capsule, and custom keybindings. |
-| `modules/launcher/WallpaperList.qml` | `MODIFIED` | PathView velocity debounce and smooth scrolling tuning. |
-| `modules/launcher/items/WallpaperItem.qml` | `MODIFIED` | Interactive launcher cards with dynamic format, FPS, and bitrate badges. |
-| `modules/nexus/common/WallItem.qml` | `MODIFIED` | Grid item component with responsive format badge display. |
-| `modules/nexus/pages/WallpaperAndStyle.qml` | `MODIFIED` | Background settings page with pause rules and hardware decoder selection. |
-| `modules/nexus/pages/wallandstyle/WallpaperCategory.qml` | `MODIFIED` | Subfolder category browsing view in Nexus. |
-| `modules/nexus/pages/wallandstyle/WallpaperSelect.qml` | `MODIFIED` | Responsive grid view with category filters and memory persistence. |
-| `plugin/src/Caelestia/Models/filesystemmodel.cpp` | `MODIFIED` | C++ fixes for root recursive directory scanning and async deduplication locks. |
-| `services/Colours.qml` | `MODIFIED` | Synchronized Material You palette extraction for video wallpaper frames. |
-| `services/WallpaperPauser.qml` | `NEW` | Smart playback manager that pauses video playback on fullscreen apps, lockscreen, or sleep. |
-| `services/Wallpapers.qml` | `MODIFIED` | Core wallpaper service with video format detection, directory scanning, and memory. |
-| `services/WallpaperThumbQueue.qml` | `NEW` | Multi-threaded asynchronous video thumbnailing and metadata queue with spiral prioritization. |
+| `install.sh` | `NEW` | Interactive deployment script with transactional rollback and backup management. |
+| `modules/background/VideoWallpaper.qml` | `NEW` | QtMultimedia video playback component with frame freezing and destruction cleanup. |
+| `modules/background/Wallpaper.qml` | `MODIFIED` | Dual-buffer layer management with Material Shape transition shaders. |
+| `modules/launcher/Content.qml` | `MODIFIED` | Category tabs, action controls, and navigation keybindings. |
+| `modules/launcher/WallpaperList.qml` | `MODIFIED` | PathView scroll velocity debounce and settling delay tuning. |
+| `modules/launcher/items/WallpaperItem.qml` | `MODIFIED` | Wallpaper card component with interactive format, FPS, and bitrate badges. |
+| `modules/nexus/common/WallItem.qml` | `MODIFIED` | Grid item view with responsive metadata display. |
+| `modules/nexus/pages/WallpaperAndStyle.qml` | `MODIFIED` | Settings interface for playback pause rules and hardware decoder selection. |
+| `modules/nexus/pages/wallandstyle/WallpaperCategory.qml` | `MODIFIED` | Category browser navigation view in Nexus. |
+| `modules/nexus/pages/wallandstyle/WallpaperSelect.qml` | `MODIFIED` | Grid selection view with category filtering and persistent memory. |
+| `plugin/src/Caelestia/Models/filesystemmodel.cpp` | `MODIFIED` | C++ recursive directory scanner fixes and deduplication locks. |
+| `services/Colours.qml` | `MODIFIED` | Material You palette extraction synchronized with video frames. |
+| `services/WallpaperPauser.qml` | `NEW` | Workspace occlusion and power status monitoring for playback pause control. |
+| `services/Wallpapers.qml` | `MODIFIED` | Core wallpaper service with format detection, metadata caching, and state management. |
+| `services/WallpaperThumbQueue.qml` | `NEW` | Multi-threaded asynchronous video thumbnailing and metadata extraction queue. |
 
 ---
 
-## 🏆 The "Involuntary" Hall of Fame (Credits & Origins)
+## Credits & Acknowledgements
 
-This project brings together and adapts ideas from several community forks and the upstream project. 
+Anima Shell builds upon and adapts ideas from the Caelestia community:
 
-Huge thanks to the creators for their *involuntary* assistance (haha!) — I essentially borrowed the best bits from each, adapted them, rewrote what was broken, and polished it into a unified product:
+* **[caelestia-dots/shell](https://github.com/caelestia-dots/shell)** — Upstream desktop shell architecture.
+* **[adiambassador/caelestia-aw](https://github.com/adiambassador/caelestia-aw)** — Initial concept for animated wallpaper integration in Caelestia.
+* **[SunnydeuS/Caelestia-Live-Wallpapers-Integration](https://github.com/SunnydeuS/Caelestia-Live-Wallpapers-Integration)** — Concept for metadata badges on thumbnail cards.
+* **[dim-ghub/midnight-shell](https://github.com/dim-ghub/midnight-shell)** — Implementation reference for Material Shape transition masks.
 
-* **[caelestia-dots/caelestia](https://github.com/caelestia-dots/caelestia)** — The bedrock. The absolute masterpiece of a desktop shell upon which all this is built.
-* **[adiambassador/caelestia-aw](https://github.com/adiambassador/caelestia-aw)** — The original spark and genesis of this project. It gifted the initial idea of animated wallpapers in Caelestia and inspired me to take it further.
-* **[SunnydeuS/Caelestia-Live-Wallpapers-Integration](https://github.com/SunnydeuS/Caelestia-Live-Wallpapers-Integration)** — The brilliant idea of displaying live badges right on the wallpaper thumbnails. I was breaking my head over how to put FPS, bitrate, and format right under the user's nose, and this was the eureka moment.
-* **[dim-ghub/midnight-shell](https://github.com/dim-ghub/midnight-shell)** — The glorious Material Shape morph transitions between wallpapers. It's just too cool not to have.
-
-Without these projects and the people behind them, Anima Shell wouldn't exist.
+*Development note: Designed and implemented with AI pair-programming assistance.*
 
 ---
 
-## 🤝 Transparency & AI Collaboration
+## Documentation
 
-You might wonder who "we" refers to throughout parts of this project. To be completely transparent: "we" is myself and AI. This fork was created, debugged, and refined with AI pair-programming. I don't intend to hide it, as I believe transparency about AI-assisted development is important.
-
----
-
-## 🔮 Future Roadmap & Original Docs
-
-Who knows how this will evolve — maybe down the line, this fork will expand into a full standalone ecosystem touching every aspect of the desktop shell. But for now, it's focused on making live wallpapers feel completely native, ultra-responsive, and buttery smooth.
-
-For full documentation on base Caelestia features, keybindings, and widgets, please visit the original repository:
+For general documentation on upstream Caelestia widgets, IPC commands, and global compositor bindings, consult the official repository:
 👉 **[caelestia-dots/shell](https://github.com/caelestia-dots/shell)**
