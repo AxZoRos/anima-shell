@@ -195,13 +195,8 @@ Item {
                 }
                 retainWhileLoading: true
                 onStatusChanged: {
-                    if (status === Image.Error) {
-                        console.warn("[WallpaperItem] Image.Error loading source:", thumbImg.source, "for video:", root.modelData?.path);
-                        if (root.isVid) {
-                            Wallpapers.requestThumbnail(root.modelData.path);
-                        }
-                    } else if (status === Image.Ready) {
-                        console.log("[WallpaperItem] Image.Ready:", thumbImg.source);
+                    if (status === Image.Error && root.isVid) {
+                        Wallpapers.requestThumbnail(root.modelData.path);
                     }
                 }
             }
