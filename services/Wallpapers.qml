@@ -418,7 +418,9 @@ Searcher {
                         for (let c in rawMem) {
                             let val = rawMem[c];
                             if (typeof val === "string" && val) {
-                                let obj = { lastAny: val };
+                                let obj = {
+                                    lastAny: val
+                                };
                                 if (root.isVideo(val))
                                     obj.lastAnimated = val;
                                 else
