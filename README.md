@@ -1,27 +1,23 @@
 <div align="center">
 
-<img src="./assets/anima-banner.gif" alt="Anima Shell" width="700"/>
+<img src="./assets/anima-banner.gif" alt="Anima Shell" width="660"/>
 
 <p align="center">
   <b>A desktop shell fork for Linux with native video wallpapers, Material Shape transitions, and directory categorization.</b><br>
   <i>Based on <a href="https://github.com/caelestia-dots/shell">Caelestia Shell</a></i>
 </p>
 
-<div align="center">
-
 [![GitHub Release](https://img.shields.io/github/v/release/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=9ccbfb)](https://github.com/AxZoRos/anima-shell/releases)
 [![GitHub last commit](https://img.shields.io/github/last-commit/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=96f1f1)](https://github.com/AxZoRos/anima-shell/commits/main)
 [![GitHub Stars](https://img.shields.io/github/stars/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=b9c8da)](https://github.com/AxZoRos/anima-shell/stargazers)
 [![License](https://img.shields.io/github/license/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=d3bfe6)](LICENSE)
 
-</div>
-
----
+<br>
 
 <!-- Video demonstration placeholder -->
-<div align="center">
-  <!-- <video src="https://github.com/user-attachments/assets/YOUR_VIDEO_ID" controls width="100%"></video> -->
-  <p><i>Demo video coming soon</i></p>
+<!-- <video src="https://github.com/user-attachments/assets/YOUR_VIDEO_ID" controls width="100%"></video> -->
+<p><i>🎬 Demo video coming soon</i></p>
+
 </div>
 
 ---
