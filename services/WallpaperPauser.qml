@@ -26,9 +26,12 @@ Singleton {
 
     // Helper for monitor-specific wallpaper layers
     function isScreenPaused(screenName: string): bool {
-        if (pauseOnBattery && UPower.onBattery) return true;
-        if (!pauseOnWindowOverlap) return false;
-        if (!screenName) return paused;
+        if (pauseOnBattery && UPower.onBattery)
+            return true;
+        if (!pauseOnWindowOverlap)
+            return false;
+        if (!screenName)
+            return paused;
         return !!screenPauseMap[screenName];
     }
 
@@ -38,9 +41,11 @@ Singleton {
 
     // Evaluates desktop area occlusion for a specific monitor
     function checkMonitorOverlapReason(mon) {
-        if (!mon) return "";
+        if (!mon)
+            return "";
         const ws = mon.activeWorkspace;
-        if (!ws || !ws.toplevels || !ws.toplevels.values) return "";
+        if (!ws || !ws.toplevels || !ws.toplevels.values)
+            return "";
 
         const toplevels = ws.toplevels.values;
         if (toplevels.length >= 2) {
@@ -63,7 +68,8 @@ Singleton {
     }
 
     function checkWindowOverlapReason() {
-        if (!pauseOnWindowOverlap) return "";
+        if (!pauseOnWindowOverlap)
+            return "";
         const monitor = Hyprland.focusedMonitor;
         return checkMonitorOverlapReason(monitor);
     }
@@ -75,7 +81,8 @@ Singleton {
         const monitors = Hyprland.monitors?.values ?? [];
         for (let i = 0; i < monitors.length; i++) {
             const mon = monitors[i];
-            if (!mon) continue;
+            if (!mon)
+                continue;
             let monReason = batteryReason || (pauseOnWindowOverlap ? checkMonitorOverlapReason(mon) : "");
             newMap[mon.name] = !!monReason;
         }
@@ -93,7 +100,8 @@ Singleton {
     readonly property var relevantEvents: new Set(["fullscreen", "changefloatingmode", "minimize", "movewindow", "openwindow", "closewindow", "moveworkspace", "focusedmon"])
 
     function isRelevantHyprlandEvent(name) {
-        if (!name || typeof name !== "string") return false;
+        if (!name || typeof name !== "string")
+            return false;
         const c = name.charCodeAt(0);
         if (c === 119 || c === 97 || c === 99 || c === 100) {
             if (name.startsWith("workspace") || name.startsWith("activewindow") || name.startsWith("createworkspace") || name.startsWith("destroyworkspace")) {
@@ -105,8 +113,12 @@ Singleton {
 
     Connections {
         target: Hyprland
-        function onFocusedWorkspaceChanged() { root.scheduleRecalculate(); }
-        function onFocusedMonitorChanged() { root.scheduleRecalculate(); }
+        function onFocusedWorkspaceChanged() {
+            root.scheduleRecalculate();
+        }
+        function onFocusedMonitorChanged() {
+            root.scheduleRecalculate();
+        }
         function onRawEvent(event) {
             if (root.isRelevantHyprlandEvent(event.name)) {
                 root.scheduleRecalculate();
@@ -137,24 +149,29 @@ Singleton {
         onTriggered: {
             root.recalculate();
             attempts++;
-            if (attempts >= 3) running = false;
+            if (attempts >= 3)
+                running = false;
         }
     }
 
     onPauseOnBatteryChanged: {
         scheduleRecalculate();
-        if (_loaded) Wallpapers.saveUiState();
+        if (_loaded)
+            Wallpapers.saveUiState();
     }
     onPauseOnWindowOverlapChanged: {
         scheduleRecalculate();
-        if (_loaded) Wallpapers.saveUiState();
+        if (_loaded)
+            Wallpapers.saveUiState();
     }
 
     // Injects HW decoder configuration and restarts shell process
     function setHwDecoder(val) {
-        if (hwDecoder === val) return;
+        if (hwDecoder === val)
+            return;
         hwDecoder = val;
-        if (!_loaded) return;
+        if (!_loaded)
+            return;
 
         Wallpapers.saveUiState(true);
         Quickshell.execDetached(["sh", "-c", "sleep 0.1; qs -c caelestia kill; sleep 0.2; caelestia shell -d"]);
