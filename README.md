@@ -1,9 +1,6 @@
-<h1 align="center">Anima Shell</h1>
+<div align="center">
 
-<!-- ASCII ART PLACEHOLDER -->
-<!--
-[ Insert your custom ASCII art here ]
--->
+<img src="./assets/anima-banner.gif" alt="Anima Shell" width="700"/>
 
 <p align="center">
   <b>A desktop shell fork for Linux with native video wallpapers, Material Shape transitions, and directory categorization.</b><br>
@@ -13,6 +10,7 @@
 <div align="center">
 
 [![GitHub Release](https://img.shields.io/github/v/release/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=9ccbfb)](https://github.com/AxZoRos/anima-shell/releases)
+[![GitHub last commit](https://img.shields.io/github/last-commit/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=96f1f1)](https://github.com/AxZoRos/anima-shell/commits/main)
 [![GitHub Stars](https://img.shields.io/github/stars/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=b9c8da)](https://github.com/AxZoRos/anima-shell/stargazers)
 [![License](https://img.shields.io/github/license/AxZoRos/anima-shell?style=for-the-badge&labelColor=101418&color=d3bfe6)](LICENSE)
 
@@ -106,7 +104,6 @@ The following keybindings are available when the wallpaper launcher is open:
 | `Alt + Left` / `Alt + H` | Switch to the previous category |
 | `Alt + Right` / `Alt + L` | Switch to the next category |
 | `Alt + 1` .. `Alt + 9` | Jump to the N-th category |
-| `Up` / `Down` (or `Ctrl+J` / `Ctrl+K`) | Navigate wallpaper items |
 
 ---
 
@@ -136,9 +133,10 @@ Overview of code modifications relative to upstream Caelestia Shell:
 
 ## Credits & Acknowledgements
 
-Anima Shell builds upon and adapts ideas from the Caelestia community:
+Anima Shell builds upon and adapts ideas from the open-source community:
 
 * **[caelestia-dots/shell](https://github.com/caelestia-dots/shell)** — Upstream desktop shell architecture.
+* **[7nik/booru-clock](https://github.com/7nik/booru-clock)** — Pixel art character sprites and split-flap mechanical flip clock inspiration for the animated banner.
 * **[adiambassador/caelestia-aw](https://github.com/adiambassador/caelestia-aw)** — Initial concept for animated wallpaper integration in Caelestia.
 * **[SunnydeuS/Caelestia-Live-Wallpapers-Integration](https://github.com/SunnydeuS/Caelestia-Live-Wallpapers-Integration)** — Concept for metadata badges on thumbnail cards.
 * **[dim-ghub/midnight-shell](https://github.com/dim-ghub/midnight-shell)** — Implementation reference for Material Shape transition masks.
