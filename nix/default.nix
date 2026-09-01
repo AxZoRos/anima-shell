@@ -35,7 +35,7 @@
 }: let
   version = "1.0.0";
 
-  qs = quickshell.withModules [qt6.qtimageformats m3shapes];
+  qs = quickshell.withModules [qt6.qtimageformats qt6.qtmultimedia m3shapes];
 
   runtimeDeps =
     [
@@ -95,7 +95,7 @@
     };
 
     nativeBuildInputs = [cmake ninja pkg-config];
-    buildInputs = [qt6.qtbase qt6.qtdeclarative qt6.qtshadertools libqalculate pipewire aubio libcava fftw lm_sensors];
+    buildInputs = [qt6.qtbase qt6.qtdeclarative qt6.qtmultimedia qt6.qtshadertools libqalculate pipewire aubio libcava fftw lm_sensors];
 
     dontWrapQtApps = true;
     cmakeFlags =
@@ -112,7 +112,7 @@ in
     src = ./..;
 
     nativeBuildInputs = [cmake ninja makeWrapper qt6.wrapQtAppsHook];
-    buildInputs = [qs extras plugin xkeyboard-config qt6.qtbase];
+    buildInputs = [qs extras plugin xkeyboard-config qt6.qtbase qt6.qtmultimedia];
     propagatedBuildInputs = runtimeDeps;
 
     cmakeFlags =
