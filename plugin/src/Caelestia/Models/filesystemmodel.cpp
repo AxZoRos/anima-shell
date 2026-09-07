@@ -304,27 +304,27 @@ void FileSystemModel::updateEntriesForDir(const QString& dir) {
 
     auto future = QtConcurrent::run([=](QPromise<PathDiff>& promise) {
         const auto flags = recursive ? QDirIterator::Subdirectories : QDirIterator::NoIteratorFlags;
-        const auto newPaths = scanDir(dir, filtersFor(filter, nameFilters, showHidden), flags, promise);
+        const auto newPaths = scanDir(targetDir, filtersFor(filter, nameFilters, showHidden), flags, promise);
         if (!newPaths)
             return;
 
         promise.addResult({ .removed = oldPaths - *newPaths, .added = *newPaths - oldPaths });
     });
 
-    if (m_futures.contains(dir)) {
-        m_futures[dir].cancel();
+    if (m_futures.contains(targetDir)) {
+        m_futures[targetDir].cancel();
     }
-    m_futures.insert(dir, future);
+    m_futures.insert(targetDir, future);
 
     future
         .then(this,
-            [dir, this](const PathDiffs result) {
-                m_futures.remove(dir);
+            [targetDir, this](const PathDiff result) {
+                m_futures.remove(targetDir);
                 if (!result.removed.isEmpty() || !result.added.isEmpty())
                     applyChanges(result.removed, result.added);
             })
-        .onCanceled(this, [dir, this]() {
-            m_futures.remove(dir);
+        .onCanceled(this, [targetDir, this]() {
+            m_futures.remove(targetDir);
         });
 }
 
