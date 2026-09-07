@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Layouts
 import Caelestia.Components
 import Caelestia.Config
+import Caelestia.I18n
 import qs.components
 import qs.components.controls
 import qs.components.images
@@ -84,7 +85,7 @@ PageBase {
         WallpaperPauser.pauseOnWindowOverlap = (index === 2 || index === 3);
     }
 
-    title: qsTr("Wallpaper & style")
+    title: Tr.tr("Wallpaper & style")
 
     ColumnLayout {
         anchors.horizontalCenter: parent.horizontalCenter
@@ -130,7 +131,7 @@ PageBase {
 
                     StyledText {
                         Layout.alignment: Qt.AlignHCenter
-                        text: qsTr("Wallpaper disabled")
+                        text: Tr.tr("Wallpaper disabled")
                         color: Colours.palette.m3onSurfaceVariant
                         font: Tokens.font.body.large
                     }
@@ -232,7 +233,7 @@ PageBase {
 
             IconTextButton {
                 icon: "wallpaper"
-                text: qsTr("Wallpapers")
+                text: Tr.tr("Wallpapers")
                 font: Tokens.font.body.large
                 isRound: true
                 shapeMorph: true
@@ -245,7 +246,7 @@ PageBase {
 
             IconTextButton {
                 icon: "palette"
-                text: qsTr("Colours")
+                text: Tr.tr("Colours")
                 font: Tokens.font.body.large
                 isRound: true
                 shapeMorph: true
@@ -259,7 +260,7 @@ PageBase {
         ToggleRow {
             Layout.fillWidth: true
             first: true
-            text: qsTr("Display wallpaper")
+            text: Tr.tr("Display wallpaper")
             checked: Config.background.wallpaperEnabled
             onToggled: GlobalConfig.background.wallpaperEnabled = checked
         }
@@ -299,8 +300,8 @@ PageBase {
             Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
             Layout.fillWidth: true
 
-            text: qsTr("Transparency")
-            subtext: qsTr("Base %1, layers %2").arg(Colours.transparency.base).arg(Colours.transparency.layers)
+            text: Tr.tr("Transparency")
+            subtext: Tr.tr("Base %1, layers %2").arg(Colours.transparency.base).arg(Colours.transparency.layers)
             checked: Colours.transparency.enabled
             onToggled: GlobalConfig.appearance.transparency.enabled = checked
         }
@@ -310,7 +311,7 @@ PageBase {
             Layout.fillWidth: true
 
             last: true
-            text: qsTr("Dark theme")
+            text: Tr.tr("Dark theme")
             checked: !Colours.light
             onToggled: Colours.setMode(checked ? "dark" : "light")
         }

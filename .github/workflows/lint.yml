@@ -7,9 +7,8 @@ on:
   pull_request:
 
 jobs:
-  lint:
+  lint-qml:
     runs-on: ubuntu-latest
-
     container:
       image: archlinux:latest
 
