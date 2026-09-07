@@ -156,45 +156,45 @@ PageBase {
             Layout.topMargin: Tokens.spacing.large
             Layout.fillWidth: true
 
-        StyledText {
-            text: Tr.tr("Local wallpapers")
-            font: Tokens.font.title.small
-            Layout.alignment: Qt.AlignVCenter
-        }
-
-        Item {
-            Layout.fillWidth: true
-        }
-
-        ButtonRow {
-            Layout.alignment: Qt.AlignVCenter
-            spacing: Tokens.spacing.small
-
-            IconTextButton {
-                icon: "collections"
-                text: qsTr("All")
-                isToggle: true
-                checked: root.filterMode === 2
-                onClicked: root.filterMode = 2
+            StyledText {
+                text: Tr.tr("Local wallpapers")
+                font: Tokens.font.title.small
+                Layout.alignment: Qt.AlignVCenter
             }
 
-            IconTextButton {
-                icon: "image"
-                text: qsTr("Static")
-                isToggle: true
-                checked: root.filterMode === 0
-                onClicked: root.filterMode = 0
+            Item {
+                Layout.fillWidth: true
             }
 
-            IconTextButton {
-                icon: "smart_display"
-                text: qsTr("Animated")
-                isToggle: true
-                checked: root.filterMode === 1
-                onClicked: root.filterMode = 1
+            ButtonRow {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: Tokens.spacing.small
+
+                IconTextButton {
+                    icon: "collections"
+                    text: qsTr("All")
+                    isToggle: true
+                    checked: root.filterMode === 2
+                    onClicked: root.filterMode = 2
+                }
+
+                IconTextButton {
+                    icon: "image"
+                    text: qsTr("Static")
+                    isToggle: true
+                    checked: root.filterMode === 0
+                    onClicked: root.filterMode = 0
+                }
+
+                IconTextButton {
+                    icon: "smart_display"
+                    text: qsTr("Animated")
+                    isToggle: true
+                    checked: root.filterMode === 1
+                    onClicked: root.filterMode = 1
+                }
             }
         }
-    }
 
         GridLayout {
             id: grid
