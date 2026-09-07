@@ -318,10 +318,6 @@ Item {
                 onStatusChanged: {
                     if (status === Image.Ready && !img.isVideo && img.path === root.settledSource) {
                         root.current = img;
-                    StyledText {
-                        text: Tr.tr("Wallpaper missing?")
-                        color: Colours.palette.m3onSurfaceVariant
-                        font: Tokens.font.body.builders.large.size(28 * 2).weight(Font.Bold).build()
                     }
                 }
             }
@@ -366,28 +362,6 @@ Item {
                     }
                 }
             }
-        }
-
-        FileDialog {
-            id: dialog
-            title: Tr.tr("Select a wallpaper")
-            filterLabel: Tr.tr("Image files")
-            filters: Images.validImageExtensions
-            onAccepted: path => Wallpapers.setWallpaper(path)
-        }
-
-        StateLayer {
-            radius: parent.radius
-            color: Colours.palette.m3onPrimary
-            onClicked: dialog.open()
-        }
-
-        StyledText {
-            id: selectWallText
-            anchors.centerIn: parent
-            text: Tr.tr("Set it now!")
-            color: Colours.palette.m3onPrimary
-            font: Tokens.font.body.large
         }
 
         Anim {
