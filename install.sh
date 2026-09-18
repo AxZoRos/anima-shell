@@ -442,7 +442,7 @@ git_clone_with_retry() {
             branch_arg=(--branch "$ref")
         fi
 
-        if git clone --depth 1 "${branch_arg[@]}" "$repo" "$dest" &>>"$LOG_FILE"; then
+        if git clone --depth 1 --no-single-branch --tags "${branch_arg[@]}" "$repo" "$dest" &>>"$LOG_FILE"; then
             return 0
         fi
         log_to_file "Git clone attempt $attempt/$max_attempts failed for $repo (ref: $ref). Retrying in 2s..."
@@ -608,7 +608,7 @@ clone_or_update_repos() {
         log_step "Updating shell repository in $SHELL_SRC (branch: $SHELL_REF)..."
         (
             cd "$SHELL_SRC"
-            git fetch origin "$SHELL_REF"
+            git fetch --tags origin "$SHELL_REF"
             git checkout "$SHELL_REF" 2>/dev/null || true
             git reset --hard "origin/$SHELL_REF"
         ) &>>"$LOG_FILE" &
