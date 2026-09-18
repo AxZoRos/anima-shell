@@ -18,11 +18,14 @@ namespace caelestia::config {
                                                                                                                        \
     };
 
-ENUM(BarWorkspaceDisplay, Shapes, Text)
+ENUM(BarWorkspaceDisplay, Shapes, Text, Icons)
 ENUM(BarWorkspaceCapitalisation, Preserve, Upper, Lower)
 ENUM(LyricsBackend, Auto, Local, LRCLIB, NetEase)
 ENUM(GpuType, Auto, Nvidia, Generic, None)
 ENUM(NotifsFullscreen, On, Off)
+ENUM(TemperatureUnit, Auto, Celsius, Fahrenheit, Kelvin)
+ENUM(DataUnit, Binary, Decimal)
+ENUM(ClockFormat, Auto, TwelveHour, TwentyFourHour)
 
 #undef ENUM
 

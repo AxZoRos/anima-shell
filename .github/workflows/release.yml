@@ -18,6 +18,9 @@ jobs:
     permissions:
       contents: write
 
+    env:
+      RELEASE_NAME: caelestia-shell-${{ github.ref_name }}
+
     steps:
       - uses: actions/checkout@v6
         with:
@@ -29,7 +32,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="${{ inputs.version }}"
             if [ -z "$TAG" ]; then
-              TAG=$(curl -sL "https://api.github.com/repos/caelestia-dots/shell/releases/latest" | grep -Po '"tag_name":\s*"\K[^"]+' || echo "")
+              TAG=$(curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/caelestia-dots/shell/releases/latest" | grep -Po '"tag_name":\s*"\K[^"]+' || echo "")
             fi
             if [ -z "$TAG" ]; then
               TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
@@ -47,7 +50,7 @@ jobs:
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Create packages
+      - name: Build release archive
         run: |
           mkdir -p release
           rsync -av \
@@ -61,8 +64,8 @@ jobs:
           tar -czf anima-shell-${{ steps.ver.outputs.tag }}.tar.gz release
           cp anima-shell-${{ steps.ver.outputs.tag }}.tar.gz anima-shell-latest.tar.gz
 
-      - name: Create release
-        uses: softprops/action-gh-release@v2
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
           files: |

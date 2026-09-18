@@ -23,7 +23,7 @@ StyledRect {
         spacing: Tokens.spacing.small
 
         StyledText {
-            text: Tr.tr("Filter:")
+            text: Tr.trCtx("Filter:", "file filter")
         }
 
         StyledRect {
@@ -38,7 +38,11 @@ StyledRect {
                 anchors.fill: parent
                 anchors.margins: Tokens.padding.medium
 
-                text: `${root.dialog.filterLabel} (${root.dialog.filters.map(f => `*.${f}`).join(", ")})`
+                text: {
+                    const filters = root.dialog.filters.map(f => `*.${f}`).join(Tr.trCtx(", ", "file filter separator"));
+                    // TRANSLATORS: %1 = filter label, %2 = file patterns
+                    return Tr.trCtx("%1 (%2)", "file filter label and patterns").arg(root.dialog.filterLabel).arg(filters);
+                }
             }
         }
 
@@ -60,7 +64,7 @@ StyledRect {
                 anchors.centerIn: parent
                 anchors.margins: Tokens.padding.medium
 
-                text: Tr.tr("Select")
+                text: Tr.trCtx("Select", "button")
                 color: root.dialog.selectionValid ? Colours.palette.m3onSurface : Colours.palette.m3outline
             }
         }
@@ -84,7 +88,7 @@ StyledRect {
                 anchors.centerIn: parent
                 anchors.margins: Tokens.padding.medium
 
-                text: Tr.tr("Cancel")
+                text: Tr.trCtx("Cancel", "button")
             }
         }
     }

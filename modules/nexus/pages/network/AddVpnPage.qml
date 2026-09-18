@@ -16,7 +16,7 @@ PageBase {
 
     readonly property int editIndex: nState.editingVpnIndex
     readonly property bool editing: editIndex >= 0
-    readonly property VPN.Provider existing: editing ? (VPN.providers[editIndex] ?? null) : null
+    readonly property var existing: editing ? (VPN.providers[editIndex] ?? null) : null
 
     function splitCmd(arr: var): string {
         return arr?.join(" ") ?? "";
@@ -48,7 +48,7 @@ PageBase {
         };
 
         if (editing) {
-            const needsReload = existing.providerId === VPN.selectedProvider && VPN.connected && (existing.name !== name || existing.iface !== data.interface || !arrEq(existing.connectCmd, data.connectCmd) || !arrEq(existing.disconnectCmd, data.disconnectCmd));
+            const needsReload = existing.id === VPN.selectedProvider && VPN.connected && (existing.name !== name || existing.interface !== data.interface || !arrEq(existing.connectCmd, data.connectCmd) || !arrEq(existing.disconnectCmd, data.disconnectCmd));
             if (needsReload)
                 VPN.disconnect();
             VPN.updateProvider(editIndex, data);
@@ -81,7 +81,7 @@ PageBase {
         if (existing) {
             nameField.text = existing.name;
             displayField.text = existing.displayName;
-            interfaceField.text = existing.iface;
+            interfaceField.text = existing.interface;
             connectField.text = splitCmd(existing.connectCmd);
             disconnectField.text = splitCmd(existing.disconnectCmd);
         }
@@ -96,6 +96,7 @@ PageBase {
         StyledText {
             Layout.fillWidth: true
             Layout.leftMargin: Tokens.padding.small
+            // TRANSLATORS: the four names in brackets are provider identifiers, leave them untranslated
             text: Tr.tr("Built-in names (wireguard, warp, tailscale, netbird) auto-fill their commands. For others, provide the connect/disconnect commands.")
             color: Colours.palette.m3onSurfaceVariant
             font: Tokens.font.body.small
@@ -109,6 +110,7 @@ PageBase {
             Layout.topMargin: Tokens.spacing.small
             placeholderText: Tr.tr("Provider name")
             leadingIcon: "vpn_key"
+            // TRANSLATORS: id here means the provider identifier, e.g. wireguard
             supportingText: Tr.tr("Built-in id or a custom name")
             errorText: Tr.tr("Provider name is required")
             inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
@@ -121,6 +123,7 @@ PageBase {
 
             Layout.fillWidth: true
             placeholderText: Tr.tr("Display name")
+            // TRANSLATORS: the name shown in the VPN provider list on the network page
             supportingText: Tr.tr("Shown in the list")
             leadingIcon: "label"
             inputMethodHints: Qt.ImhNoPredictiveText
@@ -132,7 +135,7 @@ PageBase {
             id: interfaceField
 
             Layout.fillWidth: true
-            placeholderText: Tr.tr("Interface")
+            placeholderText: Tr.trCtx("Interface", "network interface")
             leadingIcon: "lan"
             supportingText: Tr.tr("Network interface (for WireGuard / status checks)")
             inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
@@ -185,9 +188,9 @@ PageBase {
                 icon: "delete_forever"
                 text: Tr.tr("Delete")
                 onClicked: {
-                    if (root.existing.providerId === VPN.selectedProvider && VPN.connected)
+                    if (root.existing.id === VPN.selectedProvider && VPN.connected)
                         VPN.disconnect();
-                    VPN.deleteProvider(root.existing.index);
+                    VPN.deleteProvider(root.editIndex);
                     root.nState.closeSubPage();
                 }
             }
@@ -205,7 +208,7 @@ PageBase {
                     horizontalPadding: Tokens.padding.extraLarge
                     verticalPadding: Tokens.padding.medium
                     type: TextButton.Tonal
-                    text: Tr.tr("Cancel")
+                    text: Tr.trCtx("Cancel", "button")
                     onClicked: root.nState.closeSubPage()
                 }
 
@@ -214,7 +217,7 @@ PageBase {
                     shapeMorph: true
                     horizontalPadding: Tokens.padding.extraLarge
                     verticalPadding: Tokens.padding.medium
-                    text: root.editing ? Tr.tr("Save") : Tr.tr("Add")
+                    text: root.editing ? Tr.trCtx("Save", "button") : Tr.trCtx("Add", "button")
                     disabled: !nameField.text.trim()
                     onClicked: root.submit()
                 }

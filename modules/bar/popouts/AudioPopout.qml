@@ -15,7 +15,7 @@ Item {
 
     required property PopoutState popouts
 
-    implicitWidth: layout.implicitWidth + Tokens.padding.medium * 2
+    implicitWidth: Tokens.sizes.bar.audioWidth
     implicitHeight: layout.implicitHeight + Tokens.padding.medium * 2
 
     ButtonGroup {
@@ -30,11 +30,12 @@ Item {
         id: layout
 
         anchors.left: parent.left
+        anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         spacing: Tokens.spacing.medium
 
         StyledText {
-            text: Tr.tr("Output device")
+            text: Tr.trCtx("Output device", "audio output device")
             font: Tokens.font.body.builders.medium.weight(Font.Medium).build()
         }
 
@@ -46,6 +47,7 @@ Item {
 
                 required property PwNode modelData
 
+                Layout.fillWidth: true
                 ButtonGroup.group: sinks
                 checked: Audio.sink?.id === modelData.id
                 onClicked: Audio.setAudioSink(modelData)
@@ -55,7 +57,7 @@ Item {
 
         StyledText {
             Layout.topMargin: Tokens.spacing.medium
-            text: Tr.tr("Input device")
+            text: Tr.trCtx("Input device", "audio input device")
             font: Tokens.font.body.builders.medium.weight(Font.Medium).build()
         }
 
@@ -65,6 +67,7 @@ Item {
             StyledRadioButton {
                 required property PwNode modelData
 
+                Layout.fillWidth: true
                 ButtonGroup.group: sources
                 checked: Audio.source?.id === modelData.id
                 onClicked: Audio.setAudioSource(modelData)

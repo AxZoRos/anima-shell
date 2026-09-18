@@ -28,13 +28,15 @@ Singleton {
     readonly property string feelsLike: formatTemp(cc?.feelsLikeC)
     readonly property int humidity: cc?.humidity ?? 0
     readonly property real windSpeed: cc?.windSpeed ?? 0
-    readonly property string sunrise: cc ? Qt.formatDateTime(new Date(cc.sunrise), GlobalConfig.services.useTwelveHourClock ? "h:mm A" : "h:mm") : "--:--"
-    readonly property string sunset: cc ? Qt.formatDateTime(new Date(cc.sunset), GlobalConfig.services.useTwelveHourClock ? "h:mm A" : "h:mm") : "--:--"
+    readonly property string sunrise: cc ? Qt.formatDateTime(new Date(cc.sunrise), Units.twelveHourClock ? "h:mm A" : "h:mm") : "--:--"
+    readonly property string sunset: cc ? Qt.formatDateTime(new Date(cc.sunset), Units.twelveHourClock ? "h:mm A" : "h:mm") : "--:--"
 
     readonly property var cachedCities: new Map()
 
-    function formatTemp(temp: var): string {
-        return GlobalConfig.services.useFahrenheit ? `${temp !== undefined ? Math.round(toFahrenheit(temp)) : "--"}°F` : `${temp !== undefined ? Math.round(temp) : "--"}°C`;
+    function formatTemp(temp: var, compact = false): string {
+        const unit = GlobalConfig.services.weatherUnits;
+        const value = temp !== undefined ? Math.round(Units.toTemperature(temp, unit)) : "--";
+        return Units.formatTemp(value, unit, compact);
     }
 
     function reload(): void {
@@ -187,7 +189,7 @@ Singleton {
                 geo = JSON.parse(text).features?.[0]?.properties.geocoding;
             } catch (error) {
                 console.warn(lc, `Unable to parse response from nominatim: ${error}`);
-                city = Tr.tr("Unknown City");
+                city = Tr.trCtx("Unknown city", "weather location unavailable");
                 return;
             }
 
@@ -201,10 +203,10 @@ Singleton {
             }
 
             console.warn(lc, "No locality in nominatim response");
-            city = Tr.tr("Unknown City");
+            city = Tr.trCtx("Unknown city", "weather location unavailable");
         }, error => {
             console.warn(lc, `Nominatim request failed: ${error}`);
-            city = Tr.tr("Unknown City");
+            city = Tr.trCtx("Unknown city", "weather location unavailable");
         }, nominatimHeaders);
     }
 
@@ -276,10 +278,6 @@ Singleton {
             }
             hourlyForecast = hourlyList;
         });
-    }
-
-    function toFahrenheit(celsius: real): real {
-        return celsius * 9 / 5 + 32;
     }
 
     function getWeatherUrl(): string {

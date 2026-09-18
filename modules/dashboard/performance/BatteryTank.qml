@@ -6,6 +6,7 @@ import Caelestia.I18n
 import Caelestia.Services
 import qs.components
 import qs.services
+import qs.utils
 
 StyledClippingRect {
     id: root
@@ -88,21 +89,23 @@ StyledClippingRect {
             Layout.alignment: Qt.AlignRight
             text: {
                 if (UPower.displayDevice.state === UPowerDeviceState.FullyCharged)
-                    return Tr.tr("Full");
+                    return Tr.trCtx("Full", "battery state");
 
                 if (contents.charging)
-                    return Tr.tr("Charging");
+                    return Tr.trCtx("Charging", "battery state");
 
                 const s = UPower.displayDevice.timeToEmpty;
                 if (s === 0)
-                    return Tr.tr("...");
+                    return "...";
 
                 const hr = Math.floor(s / 3600);
                 const min = Math.floor((s % 3600) / 60);
                 if (hr > 0)
-                    return `${hr}h ${min}m`;
+                    // TRANSLATORS: %1 = hours, %2 = minutes
+                    return Tr.trCtx("%1h %2m", "battery time remaining").arg(hr).arg(min);
 
-                return `${min}m`;
+                // TRANSLATORS: %1 = minutes
+                return Tr.trCtx("%1m", "battery time remaining").arg(min);
             }
             color: contents.subTextColour
             font: Tokens.font.body.small
@@ -139,7 +142,7 @@ StyledClippingRect {
             }
 
             StyledText {
-                text: `${Math.round(UPower.displayDevice.percentage * 100)}%`
+                text: Strings.percentOne(UPower.displayDevice.percentage)
                 color: contents.accentColour
                 font: Tokens.font.headline.medium
             }

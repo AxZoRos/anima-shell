@@ -13,7 +13,8 @@ jobs:
       image: archlinux:latest
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout repo
+        uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -34,7 +35,8 @@ jobs:
       image: archlinux:latest
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout repo
+        uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
