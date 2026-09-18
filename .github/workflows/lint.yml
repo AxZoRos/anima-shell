@@ -44,14 +44,13 @@ jobs:
         run: |
           /usr/lib/qt6/bin/qmllint --version
           set -l qml_files (string match -vr 'build/.*' **.qml)
-          set -l lint_out (/usr/lib/qt6/bin/qmllint --import-disable -I build/qml $qml_files 2>&1 | tee /dev/stderr)
+          set -l lint_out (/usr/lib/qt6/bin/qmllint --import disable -I build/qml $qml_files 2>&1 | tee /dev/stderr)
           test -z "$lint_out" || exit 1
 
   lint-cpp:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/shell-arch-env:latest
-
+        image: ghcr.io/axzoros/shell-arch-env:latest
     steps:
       - name: Checkout source
         uses: actions/checkout@v7
