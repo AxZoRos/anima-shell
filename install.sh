@@ -219,6 +219,9 @@ get_version_tag() {
         ver=$(cd "$SHELL_SRC" && git describe --tags --abbrev=0 2>/dev/null || echo "")
     fi
     if [[ -z "$ver" ]]; then
+        ver=$(curl -sL "https://api.github.com/repos/AxZoRos/anima-shell/releases/latest" 2>/dev/null | grep -Po '"tag_name":\s*"\K[^"]+' || echo "")
+    fi
+    if [[ -z "$ver" ]]; then
         ver="v2.4.0"
     fi
     [[ "$ver" != v* ]] && ver="v$ver"
